@@ -16,7 +16,6 @@ def parse_files(files:list, num_files:int, num_p:int, pid:int, current_folder:st
     tasks = []
     for i in range(start, end):
         file_name = files[i]
-        print("Start parsing File " + file_name)
         if not file_name.endswith(".mid"):
             print("midiname should be a midi format file!")
             return ""
@@ -24,7 +23,7 @@ def parse_files(files:list, num_files:int, num_p:int, pid:int, current_folder:st
         midi_path = os.sep.join([current_folder, file_name])
         txt_str = mid2txt(midi_path)
         if txt_str != "major\nX\n" and txt_str != "minor\nX\n":
-            output_name = file_name[:-4] + ".txt"
+            output_name = os.path.split(file_name)[-1][:-4] + ".txt"
             output_path = os.sep.join([output_folder, output_name])
             tasks.append(asyncio.ensure_future(write_info(txt_str, output_path)))
         print("Complete parsing File " + file_name)
