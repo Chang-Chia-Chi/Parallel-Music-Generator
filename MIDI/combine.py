@@ -71,9 +71,8 @@ def main():
     current_folder = os.getcwd()
     txt_files = get_TXTpaths(current_folder)
 
-    manager = mp.Manager()
-    major_queue = manager.Queue()
-    minor_queue = manager.Queue()
+    major_queue = mp.Queue()
+    minor_queue = mp.Queue()
 
     p1_read_txt = mp.Process(target=process, args=(read_txt, 0, txt_files, major_queue, minor_queue))
     p2_read_txt = mp.Process(target=process, args=(read_txt, 1, txt_files, major_queue, minor_queue))
