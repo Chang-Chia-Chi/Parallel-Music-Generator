@@ -58,7 +58,7 @@ def mid2txt(midi_path:str):
         notes_list = sorted(notes_list)
         num_notes = len(notes_list)
         mid_note = notes_list[num_notes//2]
-        if mid_note < music21.pitch.Pitch("C4"):
+        if mid_note > music21.pitch.Pitch("C4"):
             txt_str += "HIGH\n"
         else:
             txt_str += "LOW\n"
@@ -113,9 +113,7 @@ def main():
         p.start()
     for p in processes:
         p.join()
-
     print("End Conversion in: {:.2f} sec!".format(time.time()-start_t))
 
 if __name__ == "__main__":
     main()
-    
