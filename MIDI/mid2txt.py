@@ -74,6 +74,9 @@ def mid2txt(midi_path:str):
                 bit = 0
                 pitch = 0
                 for p in sorted(note.pitches):
+                    # only take first three pitches if larger than three
+                    if bit > 2:
+                        break
                     pitch += (int(p.ps) % 12)*pow(OCTAVE_NUM, bit)
                     bit += 1
                 pitch += CHORD_BASE
@@ -83,7 +86,7 @@ def mid2txt(midi_path:str):
             duration = note.duration.quarterLength
             duration_diff = [abs(duration-num) for num in NOTE_DURATIONS]
             duration_index = duration_diff.index(min(duration_diff))
-            txt_str += "{:d} {:.3f}\n".format(pitch, duration_index)
+            txt_str += "{:d} {:d}\n".format(pitch, duration_index)
 
         txt_str += "E\n"
     txt_str += "X\n"
