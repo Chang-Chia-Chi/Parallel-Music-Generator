@@ -1,6 +1,7 @@
 #include <iostream>
 #include <string>
 #include <fstream>
+#include <chrono>
 #include "markov.h"
 
 // global variable
@@ -30,6 +31,24 @@ void free_matrix() {
     free(minor_low);
     free(major_chord);
     free(minor_chord);
+}
+
+void remove_old() {
+    remove("MajorHighMatrix.txt");
+    remove("MajorLowMatrix.txt");
+    remove("MinorHighMatrix.txt");
+    remove("MinorLowMatrix.txt");
+    remove("ChordHighMatrix.txt");
+    remove("ChordLowMatrix.txt");
+}
+
+void rename_new() {
+    std::rename("MajorHighMatrixTemp.txt", "MajorHighMatrix.txt");
+    std::rename("MajorLowMatrixTemp.txt", "MajorLowMatrix.txt");
+    std::rename("MinorHighMatrixTemp.txt", "MinorHighMatrix.txt");
+    std::rename("MinorLowMatrixTemp.txt", "MinorLowMatrix.txt");
+    std::rename("ChordHighMatrixTemp.txt", "ChordHighMatrix.txt");
+    std::rename("ChordLowMatrixTemp.txt", "ChordLowMatrix.txt");
 }
 
 /** 
@@ -105,7 +124,7 @@ bool matrix_generation(char* major_path, char* minor_path) {
     std::cout << "Start major notes parsing" << std::endl;
     std::ifstream major_file(major_path);
     if (!major_file) {
-        std::cerr << "Cannot open major notes file !" <<std::endl;
+        std::cerr << "Cannot open " << major_path << " !" <<std::endl;
         return false;
     }
     std::string line;
@@ -140,7 +159,7 @@ bool matrix_generation(char* major_path, char* minor_path) {
                 else if (tune == 2) {
                     major_high[cell_idx]++;
                 }
-            } 
+            }
             else if (curr_tone >= CHORD_BASE && prev_tone_1 != -1) {
                 cell_idx = get_chord_index(curr_tone, prev_tone_1);
                 if (cell_idx != -1) {
@@ -159,7 +178,7 @@ bool matrix_generation(char* major_path, char* minor_path) {
     std::cout << "Start minor notes parsing" << std::endl;
     std::ifstream minor_file(minor_path);
     if (!minor_file) {
-        std::cerr << "Cannot open minor notes file !" <<std::endl;
+        std::cerr << "Cannot open " << minor_path << " !" <<std::endl;
         return false;        
     }
     while (std::getline(minor_file, line)) {
@@ -210,8 +229,138 @@ bool matrix_generation(char* major_path, char* minor_path) {
     return true;
 }
 
-bool matrix_output(char* output_path) {
-    // TODO
+/**
+ * @brief Output generated matrices to txt files
+ */
+bool matrix_output() {
+    std::cout << "Start output matrices trained" << std::endl;
+    std::ofstream output_file;
+    std::cout << "Start output major high note -- (1/6)" << std::endl;
+    output_file.open("MajorHighMatrixTemp.txt");
+    if (!output_file) {
+        std::cerr << "Cannot open MajorHighMatrixTemp.txt !" <<std::endl;
+        return false;
+    }
+    for (int i = 0; i < NUM_NOTE * NUM_NOTE; i++) 
+    {
+        for (int j = 0; j < NUM_NOTE; j++)
+        {
+            // one line per prev_1 x prev_2 to curr
+            // j = coordinate of curr note
+            // i / NUM_NOTE = coordinate of prev_1 note
+            // i mod NUM_NOTE = coordinate of prev_2 note
+            output_file << major_high[i * NUM_NOTE + j] << " ";
+        }
+        output_file << "\n";
+    }
+    output_file.close();
+    std::cout << "Complete output major high note -- (1/6)" << std::endl;
+
+    std::cout << "Start output major low note -- (2/6)" << std::endl;
+    output_file.open("MajorLowMatrixTemp.txt");
+    if (!output_file) {
+        std::cerr << "Cannot open MajorLowMatrixTemp.txt !" <<std::endl;
+        return false;
+    }
+    for (int i = 0; i < NUM_NOTE * NUM_NOTE; i++) 
+    {
+        for (int j = 0; j < NUM_NOTE; j++)
+        {
+            // one line per prev_1 x prev_2 to curr
+            // j = coordinate of curr note
+            // i / NUM_NOTE = coordinate of prev_1 note
+            // i mod NUM_NOTE = coordinate of prev_2 note
+            output_file << major_low[i * NUM_NOTE + j] << " ";
+        }
+        output_file << "\n";
+    }
+    output_file.close();
+    std::cout << "Complete output major low note -- (2/6)" << std::endl;
+
+    std::cout << "Start output minor high note -- (3/6)" << std::endl;
+    output_file.open("MinorHighMatrixTemp.txt");
+    if (!output_file) {
+        std::cerr << "Cannot open MinorHighMatrixTemp.txt !" <<std::endl;
+        return false;
+    }
+    for (int i = 0; i < NUM_NOTE * NUM_NOTE; i++) 
+    {
+        for (int j = 0; j < NUM_NOTE; j++)
+        {
+            // one line per prev_1 x prev_2 to curr
+            // j = coordinate of curr note
+            // i / NUM_NOTE = coordinate of prev_1 note
+            // i mod NUM_NOTE = coordinate of prev_2 note
+            output_file << minor_high[i * NUM_NOTE + j] << " ";
+        }
+        output_file << "\n";
+    }
+    output_file.close();
+    std::cout << "Complete output minor high note -- (3/6)" << std::endl;
+
+    std::cout << "Start output minor low note -- (4/6)" << std::endl;
+    output_file.open("MinorLowMatrixTemp.txt");
+    if (!output_file) {
+        std::cerr << "Cannot open MinorLowMatrixTemp.txt !" <<std::endl;
+        return false;
+    }
+    for (int i = 0; i < NUM_NOTE * NUM_NOTE; i++) 
+    {
+        for (int j = 0; j < NUM_NOTE; j++)
+        {
+            // one line per prev_1 x prev_2 to curr
+            // j = coordinate of curr note
+            // i / NUM_NOTE = coordinate of prev_1 note
+            // i mod NUM_NOTE = coordinate of prev_2 note
+            output_file << minor_low[i * NUM_NOTE + j] << " ";
+        }
+        output_file << "\n";
+    }
+    output_file.close();
+    std::cout << "Complete output minor low note -- (4/6)" << std::endl;
+
+    std::cout << "Start output major chord -- (5/6)" << std::endl;
+    output_file.open("MajorChordMatrixTemp.txt");
+    if (!output_file) {
+        std::cerr << "Cannot open MajorChordMatrixTemp.txt !" <<std::endl;
+        return false;
+    }
+    for (int i = 0; i < NUM_CHORD ; i++) 
+    {
+        for (int j = 0; j < NUM_CHORD; j++)
+        {
+            // one line per prev_chord line
+            // j = coordinate of curr chord
+            // i = coordinate of prev chord
+            output_file << major_chord[i * NUM_CHORD + j] << " ";
+        }
+        output_file << "\n";
+    }
+    output_file.close();
+    std::cout << "Complete output major chord note -- (5/6)" << std::endl;    
+
+    std::cout << "Start output minor chord -- (6/6)" << std::endl;
+    output_file.open("MinorChordMatrixTemp.txt");
+    if (!output_file) {
+        std::cerr << "Cannot open MinorChordMatrixTemp.txt !" <<std::endl;
+        return false;
+    }
+    for (int i = 0; i < NUM_CHORD ; i++) 
+    {
+        for (int j = 0; j < NUM_CHORD; j++)
+        {
+            // one line per prev_chord line
+            // j = coordinate of curr chord
+            // i = coordinate of prev chord
+            output_file << minor_chord[i * NUM_CHORD + j] << " ";
+        }
+        output_file << "\n";
+    }
+    output_file.close();
+    std::cout << "Complete output minor chord note -- (6/6)" << std::endl;
+
+    remove_old();
+    rename_new();
     return true;
 }
 
@@ -225,15 +374,25 @@ int main(int argc, char** argv) {
     bool success;
     char* major_path = argv[1];
     char* minor_path = argv[2];
+
+    using std::chrono::high_resolution_clock;
+    using std::chrono::duration_cast;
+    using std::chrono::duration;
+    using std::chrono::milliseconds;
+
+    auto t_start = high_resolution_clock::now();
     success = matrix_generation(major_path, minor_path);
     if (success) {
         std::cout << "Matrix generation successed" << std::endl;
     } else {
         std::cout << "Matrix generation failed" << std::endl;
     }
+    auto t_end = high_resolution_clock::now();
+    auto t_spent = duration_cast<milliseconds>(t_end - t_start);
+    std::cout << "Time spent for matrix generation: " << t_spent.count() << "ms\n";
 
-    char* output_path = "Matrix_Output.txt";
-    success = matrix_output(output_path);
+
+    success = matrix_output();
     if (success) {
         std::cout << "Matrix output successed" << std::endl;
     } else {
