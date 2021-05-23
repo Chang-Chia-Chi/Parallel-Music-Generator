@@ -14,10 +14,10 @@ int* minor_chord;
 
 void matrix_alloc() {
     // Allocation of major & minor notes transfer matrices //
-    major_high = (int*)malloc(sizeof(int) * (NUM_NOTE * NUM_NOTE * NUM_NOTE));
-    major_low = (int*)malloc(sizeof(int) * (NUM_NOTE * NUM_NOTE * NUM_NOTE));
-    minor_high = (int*)malloc(sizeof(int) * (NUM_NOTE * NUM_NOTE * NUM_NOTE));
-    minor_low = (int*)malloc(sizeof(int) * (NUM_NOTE * NUM_NOTE * NUM_NOTE));
+    major_high = (int*)malloc(sizeof(int) * (NUM_NOTE * NUM_NOTE));
+    major_low = (int*)malloc(sizeof(int) * (NUM_NOTE * NUM_NOTE));
+    minor_high = (int*)malloc(sizeof(int) * (NUM_NOTE * NUM_NOTE));
+    minor_low = (int*)malloc(sizeof(int) * (NUM_NOTE * NUM_NOTE));
 
     // Allocation of major & minor chords transfer matrices //
     major_chord = (int*)malloc(sizeof(int) * (NUM_CHORD * NUM_CHORD));
@@ -58,10 +58,8 @@ void rename_new() {
  * @param curr_dur      Duration of current tone
  * @param prev_tone_1   Previous tone
  * @param prev_dur_1    Duration of previous tone
- * @param prev_tone_2   Tone before previous tone
- * @param prev_dur_2    Duration of tone before previous one
  */
-inline int get_note_index(int curr_tone, int curr_dur, int prev_tone_1, int prev_dur_1, int prev_tone_2, int prev_dur_2, int tune) {
+inline int get_note_index(int curr_tone, int curr_dur, int prev_tone_1, int prev_dur_1, int tune) {
     int col = curr_tone * NUM_DURATION + curr_dur ;
 
     // If previous tone is chord, get top note and find closest
@@ -74,18 +72,9 @@ inline int get_note_index(int curr_tone, int curr_dur, int prev_tone_1, int prev
         }
 
     }
-    if (prev_tone_2 >= CHORD_BASE) {
-        prev_tone_2 = (prev_tone_2 - CHORD_BASE) / 144; // Get top note
-        if (curr_tone == NUM_TONE - 1) { // if curr_tone is Rest
-            prev_tone_2 = prev_tone_2 + 12 * (2 * tune);
-        } else {
-            prev_tone_2 = curr_tone - (curr_tone % 12) + prev_tone_2;
-        }
-    }   
 
     int row;
-    row = (prev_tone_1 * NUM_DURATION + prev_dur_1) * NUM_NOTE
-        + (prev_tone_2 * NUM_DURATION + prev_dur_2);
+    row = prev_tone_1 * NUM_DURATION + prev_dur_1;
 
     return row * NUM_NOTE + col;
 }   
@@ -114,8 +103,6 @@ bool matrix_generation(char* major_path, char* minor_path) {
     int curr_dur = -1;
     int prev_tone_1 = -1;
     int prev_dur_1 = -1;
-    int prev_tone_2 = -1;
-    int prev_dur_2 = -1;
     int tune = 1;
     size_t split_idx;
     int cell_idx;
@@ -134,8 +121,6 @@ bool matrix_generation(char* major_path, char* minor_path) {
             curr_dur = -1; 
             prev_tone_1 = -1; 
             prev_dur_1 = -1; 
-            prev_tone_2 = -1; 
-            prev_dur_2 = -1;
             newMidi_flag = 1;
         }
         if (line.find('L') != std::string::npos) { // low melody
@@ -151,8 +136,8 @@ bool matrix_generation(char* major_path, char* minor_path) {
             curr_tone = std::stoi(line.substr(0, split_idx));
             curr_dur = std::stoi(line.substr(split_idx));
             // first note do nothing
-            if (curr_tone < CHORD_BASE && prev_tone_2 != -1) { // third note
-                cell_idx = get_note_index(curr_tone, curr_dur, prev_tone_1, prev_dur_1, prev_tone_2, prev_dur_2, tune);
+            if (curr_tone < CHORD_BASE && prev_tone_1 != -1) { // second note
+                cell_idx = get_note_index(curr_tone, curr_dur, prev_tone_1, prev_dur_1, tune);
                 if (tune == 1) {
                     major_low[cell_idx]++;
                 } 
@@ -166,8 +151,6 @@ bool matrix_generation(char* major_path, char* minor_path) {
                     major_chord[cell_idx]++;
                 }
             }
-            prev_tone_2 = prev_tone_1;
-            prev_dur_2 = prev_dur_1;
             prev_tone_1 = curr_tone;
             prev_dur_1 = curr_dur;
         }
@@ -187,8 +170,6 @@ bool matrix_generation(char* major_path, char* minor_path) {
             curr_dur = -1; 
             prev_tone_1 = -1; 
             prev_dur_1 = -1; 
-            prev_tone_2 = -1; 
-            prev_dur_2 = -1;
             newMidi_flag = 1;
         }
         if (line.find('L') != std::string::npos) { // low melody
@@ -204,8 +185,8 @@ bool matrix_generation(char* major_path, char* minor_path) {
             curr_tone = std::stoi(line.substr(0, split_idx));
             curr_dur = std::stoi(line.substr(split_idx));
             // first note do nothing
-            if (curr_tone < CHORD_BASE && prev_tone_2 != -1) { // third note
-                cell_idx = get_note_index(curr_tone, curr_dur, prev_tone_1, prev_dur_1, prev_tone_2, prev_dur_2, tune);
+            if (curr_tone < CHORD_BASE && prev_tone_1 != -1) { // second note
+                cell_idx = get_note_index(curr_tone, curr_dur, prev_tone_1, prev_dur_1, tune);
                 if (tune == 1) {
                     minor_low[cell_idx]++;
                 } 
@@ -219,8 +200,6 @@ bool matrix_generation(char* major_path, char* minor_path) {
                     minor_chord[cell_idx]++;
                 }
             }
-            prev_tone_2 = prev_tone_1;
-            prev_dur_2 = prev_dur_1;
             prev_tone_1 = curr_tone;
             prev_dur_1 = curr_dur;
         }
@@ -241,14 +220,13 @@ bool matrix_output() {
         std::cerr << "Cannot open MajorHighMatrixTemp.txt !" <<std::endl;
         return false;
     }
-    for (int i = 0; i < NUM_NOTE * NUM_NOTE; i++) 
+    for (int i = 0; i < NUM_NOTE; i++) 
     {
         for (int j = 0; j < NUM_NOTE; j++)
         {
-            // one line per prev_1 x prev_2 to curr
+            // one line per prev_1 to curr
             // j = coordinate of curr note
-            // i / NUM_NOTE = coordinate of prev_1 note
-            // i mod NUM_NOTE = coordinate of prev_2 note
+            // i = coordinate of prev_1 note
             output_file << major_high[i * NUM_NOTE + j] << " ";
         }
         output_file << "\n";
@@ -262,14 +240,13 @@ bool matrix_output() {
         std::cerr << "Cannot open MajorLowMatrixTemp.txt !" <<std::endl;
         return false;
     }
-    for (int i = 0; i < NUM_NOTE * NUM_NOTE; i++) 
+    for (int i = 0; i < NUM_NOTE; i++) 
     {
         for (int j = 0; j < NUM_NOTE; j++)
         {
-            // one line per prev_1 x prev_2 to curr
+            // one line per prev_1 to curr
             // j = coordinate of curr note
-            // i / NUM_NOTE = coordinate of prev_1 note
-            // i mod NUM_NOTE = coordinate of prev_2 note
+            // i = NUM_NOTE = coordinate of prev_1 note
             output_file << major_low[i * NUM_NOTE + j] << " ";
         }
         output_file << "\n";
@@ -283,14 +260,13 @@ bool matrix_output() {
         std::cerr << "Cannot open MinorHighMatrixTemp.txt !" <<std::endl;
         return false;
     }
-    for (int i = 0; i < NUM_NOTE * NUM_NOTE; i++) 
+    for (int i = 0; i < NUM_NOTE; i++) 
     {
         for (int j = 0; j < NUM_NOTE; j++)
         {
-            // one line per prev_1 x prev_2 to curr
+            // one line per prev_1 to curr
             // j = coordinate of curr note
-            // i / NUM_NOTE = coordinate of prev_1 note
-            // i mod NUM_NOTE = coordinate of prev_2 note
+            // i = NUM_NOTE = coordinate of prev_1 note
             output_file << minor_high[i * NUM_NOTE + j] << " ";
         }
         output_file << "\n";
@@ -304,14 +280,13 @@ bool matrix_output() {
         std::cerr << "Cannot open MinorLowMatrixTemp.txt !" <<std::endl;
         return false;
     }
-    for (int i = 0; i < NUM_NOTE * NUM_NOTE; i++) 
+    for (int i = 0; i < NUM_NOTE; i++) 
     {
         for (int j = 0; j < NUM_NOTE; j++)
         {
-            // one line per prev_1 x prev_2 to curr
+            // one line per prev_1 to curr
             // j = coordinate of curr note
-            // i / NUM_NOTE = coordinate of prev_1 note
-            // i mod NUM_NOTE = coordinate of prev_2 note
+            // i = NUM_NOTE = coordinate of prev_1 note
             output_file << minor_low[i * NUM_NOTE + j] << " ";
         }
         output_file << "\n";
