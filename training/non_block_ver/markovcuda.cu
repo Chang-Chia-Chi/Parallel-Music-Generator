@@ -64,17 +64,17 @@ void cuda_malloc() {
     cudaMalloc(&device_minorLowDur, sizeof(int) * BUFFER_LEN);
 
     cudaMalloc(&device_majorHighNotes, sizeof(int) * NUM_NOTE * NUM_NOTE);
-    cudaMemset(device_majorHighNotes, 0, sizeof(int) * NUM_NOTE * NUM_NOTE);
+    cudaMemsetAsync(device_majorHighNotes, 0, sizeof(int) * NUM_NOTE * NUM_NOTE, majorHighStream);
     cudaMalloc(&device_majorLowNotes, sizeof(int) * NUM_NOTE * NUM_NOTE);
-    cudaMemset(device_majorLowNotes, 0, sizeof(int) * NUM_NOTE * NUM_NOTE);
+    cudaMemsetAsync(device_majorLowNotes, 0, sizeof(int) * NUM_NOTE * NUM_NOTE, majorLowStream);
     cudaMalloc(&device_minorHighNotes, sizeof(int) * NUM_NOTE * NUM_NOTE);
-    cudaMemset(device_minorHighNotes, 0, sizeof(int) * NUM_NOTE * NUM_NOTE);
+    cudaMemsetAsync(device_minorHighNotes, 0, sizeof(int) * NUM_NOTE * NUM_NOTE, minorHighStream);
     cudaMalloc(&device_minorLowNotes, sizeof(int) * NUM_NOTE * NUM_NOTE);
-    cudaMemset(device_minorLowNotes, 0, sizeof(int) * NUM_NOTE * NUM_NOTE);
+    cudaMemsetAsync(device_minorLowNotes, 0, sizeof(int) * NUM_NOTE * NUM_NOTE, minorLowStream);
     cudaMalloc(&device_majorChords, sizeof(int) * NUM_CHORD * NUM_CHORD);
-    cudaMemset(device_majorChords, 0, sizeof(int) * NUM_CHORD * NUM_CHORD);
+    cudaMemsetAsync(device_majorChords, 0, sizeof(int) * NUM_CHORD * NUM_CHORD, majorHighChordStream);
     cudaMalloc(&device_minorChords, sizeof(int) * NUM_CHORD * NUM_CHORD);
-    cudaMemset(device_minorChords, 0, sizeof(int) * NUM_CHORD * NUM_CHORD);
+    cudaMemsetAsync(device_minorChords, 0, sizeof(int) * NUM_CHORD * NUM_CHORD, minorHighChordStream);
 }
 
 void cuda_free() {
@@ -113,12 +113,12 @@ void cuda_stream_synch(int is_major) {
 }   
 
 void cuda_to_host() {
-    cudaMemcpy(major_high, device_majorHighNotes, sizeof(int) * NUM_NOTE * NUM_NOTE, cudaMemcpyDeviceToHost);
-    cudaMemcpy(major_low, device_majorLowNotes, sizeof(int) * NUM_NOTE * NUM_NOTE, cudaMemcpyDeviceToHost);
-    cudaMemcpy(minor_high, device_minorHighNotes, sizeof(int) * NUM_NOTE * NUM_NOTE, cudaMemcpyDeviceToHost);
-    cudaMemcpy(minor_low, device_minorLowNotes, sizeof(int) * NUM_NOTE * NUM_NOTE, cudaMemcpyDeviceToHost);
-    cudaMemcpy(major_chord, device_majorChords, sizeof(int) * NUM_CHORD * NUM_CHORD, cudaMemcpyDeviceToHost);
-    cudaMemcpy(minor_chord, device_minorChords, sizeof(int) * NUM_CHORD * NUM_CHORD, cudaMemcpyDeviceToHost);
+    cudaMemcpyAsync(major_high, device_majorHighNotes, sizeof(int) * NUM_NOTE * NUM_NOTE, cudaMemcpyDeviceToHost, majorHighStream);
+    cudaMemcpyAsync(major_low, device_majorLowNotes, sizeof(int) * NUM_NOTE * NUM_NOTE, cudaMemcpyDeviceToHost, majorLowStream);
+    cudaMemcpyAsync(minor_high, device_minorHighNotes, sizeof(int) * NUM_NOTE * NUM_NOTE, cudaMemcpyDeviceToHost, minorHighStream);
+    cudaMemcpyAsync(minor_low, device_minorLowNotes, sizeof(int) * NUM_NOTE * NUM_NOTE, cudaMemcpyDeviceToHost, minorLowStream);
+    cudaMemcpyAsync(major_chord, device_majorChords, sizeof(int) * NUM_CHORD * NUM_CHORD, cudaMemcpyDeviceToHost, majorHighChordStream);
+    cudaMemcpyAsync(minor_chord, device_minorChords, sizeof(int) * NUM_CHORD * NUM_CHORD, cudaMemcpyDeviceToHost, minorHighChordStream);
 }
 
 __device__ inline int cuda_getNoteIndex(int curr_tone, int curr_dur, int prev_tone_1, int prev_dur_1, int tune) {
@@ -206,32 +206,32 @@ __global__ void chord_kernel(int* device_Tone, int* device_mat, int use_len) {
 void cuda_note_count(int* high_tone, int* hign_dur, int* low_tone, int* low_dur, int high_len, int low_len, int is_major, int tune) {
     if (is_major == 0)
     {     
-        cudaMemcpy(device_minorHighTone, high_tone, sizeof(int) * high_len, cudaMemcpyHostToDevice);
-        cudaMemcpy(device_minorHighDur, hign_dur, sizeof(int) * high_len, cudaMemcpyHostToDevice);
-        note_kernel<<<1, NUM_THREADS, 0>>>(device_minorHighTone, device_minorHighDur, device_minorHighNotes, high_len, tune);
+        cudaMemcpyAsync(device_minorHighTone, high_tone, sizeof(int) * high_len, cudaMemcpyHostToDevice, minorHighStream);
+        cudaMemcpyAsync(device_minorHighDur, hign_dur, sizeof(int) * high_len, cudaMemcpyHostToDevice, minorHighStream);
+        note_kernel<<<1, NUM_THREADS, 0, minorHighStream>>>(device_minorHighTone, device_minorHighDur, device_minorHighNotes, high_len, tune);
 
-        cudaMemcpy(device_minorLowTone, low_tone, sizeof(int) * low_len, cudaMemcpyHostToDevice);
-        cudaMemcpy(device_minorLowDur, low_dur, sizeof(int) * low_len, cudaMemcpyHostToDevice);
-        note_kernel<<<1, NUM_THREADS>>>(device_minorLowTone, device_minorLowDur, device_minorLowNotes, low_len, tune);
+        cudaMemcpyAsync(device_minorLowTone, low_tone, sizeof(int) * low_len, cudaMemcpyHostToDevice, minorLowStream);
+        cudaMemcpyAsync(device_minorLowDur, low_dur, sizeof(int) * low_len, cudaMemcpyHostToDevice, minorLowStream);
+        note_kernel<<<1, NUM_THREADS, 0, minorLowStream>>>(device_minorLowTone, device_minorLowDur, device_minorLowNotes, low_len, tune);
 
-        cudaMemcpy(device_minorLowTone, low_tone, sizeof(int) * low_len, cudaMemcpyHostToDevice);
-        cudaMemcpy(device_minorHighTone, high_tone, sizeof(int) * high_len, cudaMemcpyHostToDevice);
-        chord_kernel<<<1, NUM_THREADS>>>(device_minorLowTone, device_minorChords, low_len);
-        chord_kernel<<<1, NUM_THREADS>>>(device_minorHighTone, device_minorChords, high_len);
+        cudaMemcpyAsync(device_minorLowTone, low_tone, sizeof(int) * low_len, cudaMemcpyHostToDevice, minorLowChordStream);
+        cudaMemcpyAsync(device_minorHighTone, high_tone, sizeof(int) * high_len, cudaMemcpyHostToDevice, minorHighChordStream);
+        chord_kernel<<<1, NUM_THREADS, 0, minorLowChordStream>>>(device_minorLowTone, device_minorChords, low_len);
+        chord_kernel<<<1, NUM_THREADS, 0, minorHighChordStream>>>(device_minorHighTone, device_minorChords, high_len);
     }
     else if (is_major == 1)
     {
-        cudaMemcpy(device_majorHighTone, high_tone, sizeof(int) * high_len, cudaMemcpyHostToDevice);
-        cudaMemcpy(device_majorHighDur, hign_dur, sizeof(int) * high_len, cudaMemcpyHostToDevice);
-        note_kernel<<<1, NUM_THREADS>>>(device_majorHighTone, device_majorHighDur, device_majorHighNotes, high_len, tune);
+        cudaMemcpyAsync(device_majorHighTone, high_tone, sizeof(int) * high_len, cudaMemcpyHostToDevice, majorHighStream);
+        cudaMemcpyAsync(device_majorHighDur, hign_dur, sizeof(int) * high_len, cudaMemcpyHostToDevice, majorHighStream);
+        note_kernel<<<1, NUM_THREADS, 0, majorHighStream>>>(device_majorHighTone, device_majorHighDur, device_majorHighNotes, high_len, tune);
 
-        cudaMemcpy(device_majorLowTone, low_tone, sizeof(int) * low_len, cudaMemcpyHostToDevice);
-        cudaMemcpy(device_majorLowDur, low_dur, sizeof(int) * low_len, cudaMemcpyHostToDevice);
-        note_kernel<<<1, NUM_THREADS>>>(device_minorLowTone, device_minorLowDur, device_majorLowNotes, low_len, tune);
+        cudaMemcpyAsync(device_majorLowTone, low_tone, sizeof(int) * low_len, cudaMemcpyHostToDevice, majorLowStream);
+        cudaMemcpyAsync(device_majorLowDur, low_dur, sizeof(int) * low_len, cudaMemcpyHostToDevice, majorLowStream);
+        note_kernel<<<1, NUM_THREADS, 0, majorLowStream>>>(device_minorLowTone, device_minorLowDur, device_majorLowNotes, low_len, tune);
 
-        cudaMemcpy(device_majorLowTone, low_tone, sizeof(int) * low_len, cudaMemcpyHostToDevice);
-        cudaMemcpy(device_minorHighTone, high_tone, sizeof(int) * high_len, cudaMemcpyHostToDevice);
-        chord_kernel<<<1, NUM_THREADS>>>(device_majorLowTone, device_majorChords, low_len);
-        chord_kernel<<<1, NUM_THREADS>>>(device_majorHighTone, device_majorChords, high_len);
+        cudaMemcpyAsync(device_majorLowTone, low_tone, sizeof(int) * low_len, cudaMemcpyHostToDevice, majorHighChordStream);
+        cudaMemcpyAsync(device_minorHighTone, high_tone, sizeof(int) * high_len, cudaMemcpyHostToDevice, majorLowChordStream);
+        chord_kernel<<<1, NUM_THREADS, 0, majorLowChordStream>>>(device_majorLowTone, device_majorChords, low_len);
+        chord_kernel<<<1, NUM_THREADS, 0, majorHighChordStream>>>(device_majorHighTone, device_majorChords, high_len);
     }
 }

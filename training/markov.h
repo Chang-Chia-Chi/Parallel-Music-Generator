@@ -6,7 +6,7 @@
 #define NUM_CHORD 1728
 #define NUM_NOTE NUM_TONE * NUM_DURATION
 #define CHORD_BASE 99
-#define BUFFER_LEN 100000
+#define BUFFER_LEN 200000
 #define NUM_THREADS 1024
 
 extern int* major_high;
@@ -42,5 +42,12 @@ extern int* device_majorChords;
 extern int* device_minorChords;
 
 // cuda functions called by main
-bool cuda_matrix_generation(char* major_path, char* minor_path);
+void cuda_note_count(int* high_tone, int* hign_dur, int* low_tone, int* low_dur, int high_len, int low_len, int is_major, int tune);
+void cuda_malloc();
+void cuda_stream_create();
+void cuda_to_host();
+void cuda_free();
+void cuda_stream_destroy();
+void cuda_stream_synch(int is_major);
+
 #endif 
