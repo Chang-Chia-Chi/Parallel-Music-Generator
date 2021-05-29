@@ -1,6 +1,6 @@
 CC = g++
 NVCC = nvcc
-CXXFLAGS := -I ./ -O3 -std=c++17 -Wall
+CXXFLAGS := -I ./ -O3 -std=c++11 -Wall
 
 CUDA_LINK_FLAGS =  -rdc=true -gencode=arch=compute_61,code=sm_61 -Xcompiler '-fPIC' 
 CUDA_COMPILE_FLAGS = --device-c -std=c++11 -gencode=arch=compute_61,code=sm_61 -Xcompiler '-fPIC' -g -O3
