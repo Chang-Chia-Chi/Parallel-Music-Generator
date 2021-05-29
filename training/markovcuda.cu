@@ -15,14 +15,10 @@ cudaStream_t minorHighChordStream;
 cudaStream_t minorLowChordStream;
 
 // memory transfer to device
-int* device_majorHighTone;
-int* device_majorHighDur;
-int* device_majorLowTone;
-int* device_majorLowDur;
-int* device_minorHighTone;
-int* device_minorHighDur;
-int* device_minorLowTone;
-int* device_minorLowDur;
+note_info* device_majorHighBuff;
+note_info* device_majorLowBuff;
+note_info* device_minorHighBuff;
+note_info* device_minorLowBuff;
 
 int* device_majorHighNotes;
 int* device_majorLowNotes;
@@ -54,14 +50,10 @@ void cuda_stream_destroy() {
 }
 
 void cuda_malloc() {
-    cudaMalloc(&device_majorHighTone, sizeof(int) * BUFFER_LEN);
-    cudaMalloc(&device_majorHighDur, sizeof(int) * BUFFER_LEN);
-    cudaMalloc(&device_majorLowTone, sizeof(int) * BUFFER_LEN);
-    cudaMalloc(&device_majorLowDur, sizeof(int) * BUFFER_LEN);
-    cudaMalloc(&device_minorHighTone, sizeof(int) * BUFFER_LEN);
-    cudaMalloc(&device_minorHighDur, sizeof(int) * BUFFER_LEN);
-    cudaMalloc(&device_minorLowTone, sizeof(int) * BUFFER_LEN);
-    cudaMalloc(&device_minorLowDur, sizeof(int) * BUFFER_LEN);
+    cudaMalloc(&device_majorHighBuff, sizeof(note_info) * BUFFER_LEN);
+    cudaMalloc(&device_majorLowBuff, sizeof(note_info) * BUFFER_LEN);
+    cudaMalloc(&device_minorHighBuff, sizeof(note_info) * BUFFER_LEN);
+    cudaMalloc(&device_minorLowBuff, sizeof(note_info) * BUFFER_LEN);
 
     cudaMalloc(&device_majorHighNotes, sizeof(int) * NUM_NOTE * NUM_NOTE);
     cudaMemset(device_majorHighNotes, 0, sizeof(int) * NUM_NOTE * NUM_NOTE);
@@ -78,14 +70,10 @@ void cuda_malloc() {
 }
 
 void cuda_free() {
-    cudaFree(device_majorHighTone);
-    cudaFree(device_majorHighDur);
-    cudaFree(device_majorLowTone);
-    cudaFree(device_majorLowDur);
-    cudaFree(device_minorHighTone);
-    cudaFree(device_minorHighDur);
-    cudaFree(device_minorLowTone);
-    cudaFree(device_minorLowDur);
+    cudaFree(device_majorHighBuff);
+    cudaFree(device_majorLowBuff);
+    cudaFree(device_minorHighBuff);
+    cudaFree(device_minorLowBuff);
 
     cudaFree(device_majorHighNotes);
     cudaFree(device_majorLowNotes);
@@ -153,7 +141,7 @@ __device__ inline int cuda_getChordIndex(int curr_tone, int prev_tone) {
     return prev_tone * NUM_CHORD + (curr_tone - CHORD_BASE);
 }
 
-__global__ void note_kernel(int* device_Tone, int* device_Dur, int* device_mat, int use_len, int tune) {
+__global__ void note_kernel(note_info* device_Buff, int* device_Mat, int use_len) {
     int start, end;
     int tx = threadIdx.x;
     start = tx * (use_len / NUM_THREADS) + 1;
@@ -164,22 +152,23 @@ __global__ void note_kernel(int* device_Tone, int* device_Dur, int* device_mat, 
     }
 
     int index;
-    int curr_Tone, curr_Dur, prev_Tone, prev_Dur;
+    int curr_tone, curr_dur, prev_tone, prev_dur, tune;
     for (int i = start; i < end; i++) {
-        curr_Tone = device_Tone[i];
-        curr_Dur = device_Dur[i];
-        prev_Tone = device_Tone[i - 1];
-        prev_Dur = device_Dur[i - 1];
-        if (curr_Tone < CHORD_BASE && prev_Tone != -1) {
-            index = cuda_getNoteIndex(curr_Tone, curr_Dur, prev_Tone, prev_Dur, tune);
+        curr_tone = device_Buff[i].tone;
+        curr_tone = device_Buff[i].dur;
+        prev_tone = device_Buff[i - 1].tone;
+        prev_dur = device_Buff[i - 1].dur;
+        tune = device_Buff[i].tune;
+        if (curr_tone < CHORD_BASE && prev_tone != -1) {
+            index = cuda_getNoteIndex(curr_tone, curr_dur, prev_tone, prev_dur, tune);
             if (index != -1) {
-                atomicAdd(&device_mat[index], 1);
+                atomicAdd(&device_Mat[index], 1);
             }
         }
     }
 }
 
-__global__ void chord_kernel(int* device_Tone, int* device_mat, int use_len) {
+__global__ void chord_kernel(note_info* device_Buff, int* device_Mat, int use_len) {
     int start, end;
     int tx = threadIdx.x;
     start = tx * (use_len / NUM_THREADS) + 1;
@@ -190,48 +179,45 @@ __global__ void chord_kernel(int* device_Tone, int* device_mat, int use_len) {
     }
 
     int index;
-    int curr_Tone, prev_Tone;
+    int curr_tone, prev_tone;
     for (int i = start; i < end; i++) {
-        curr_Tone = device_Tone[i];
-        prev_Tone = device_Tone[i - 1];
-        if (curr_Tone >= CHORD_BASE && prev_Tone != -1) {
-            index = cuda_getChordIndex(curr_Tone, prev_Tone);
+        curr_tone = device_Buff[i].tone;
+        prev_tone = device_Buff[i - 1].tone;
+        if (curr_tone >= CHORD_BASE && prev_tone != -1) {
+            index = cuda_getChordIndex(curr_tone, prev_tone);
             if (index != -1) {
-                atomicAdd(&device_mat[index], 1);
+                atomicAdd(&device_Mat[index], 1);
             }
         }
     }    
 }
 
-void cuda_note_count(int* high_tone, int* hign_dur, int* low_tone, int* low_dur, int high_len, int low_len, int is_major, int tune) {
-    if (is_major == 0)
-    {     
-        cudaMemcpy(device_minorHighTone, high_tone, sizeof(int) * high_len, cudaMemcpyHostToDevice);
-        cudaMemcpy(device_minorHighDur, hign_dur, sizeof(int) * high_len, cudaMemcpyHostToDevice);
-        note_kernel<<<1, NUM_THREADS, 0>>>(device_minorHighTone, device_minorHighDur, device_minorHighNotes, high_len, tune);
-
-        cudaMemcpy(device_minorLowTone, low_tone, sizeof(int) * low_len, cudaMemcpyHostToDevice);
-        cudaMemcpy(device_minorLowDur, low_dur, sizeof(int) * low_len, cudaMemcpyHostToDevice);
-        note_kernel<<<1, NUM_THREADS>>>(device_minorLowTone, device_minorLowDur, device_minorLowNotes, low_len, tune);
-
-        cudaMemcpy(device_minorLowTone, low_tone, sizeof(int) * low_len, cudaMemcpyHostToDevice);
-        cudaMemcpy(device_minorHighTone, high_tone, sizeof(int) * high_len, cudaMemcpyHostToDevice);
-        chord_kernel<<<1, NUM_THREADS>>>(device_minorLowTone, device_minorChords, low_len);
-        chord_kernel<<<1, NUM_THREADS>>>(device_minorHighTone, device_minorChords, high_len);
+void buffer_copy(note_info* high_buff, note_info* low_buff, int high_len, int low_len, int is_major) {
+    if (is_major == 0) 
+    {
+        cudaMemcpy(device_minorHighBuff, high_buff, sizeof(note_info) * high_len, cudaMemcpyHostToDevice);
+        cudaMemcpy(device_minorLowBuff, low_buff, sizeof(note_info) * low_len, cudaMemcpyHostToDevice);
     }
     else if (is_major == 1)
     {
-        cudaMemcpy(device_majorHighTone, high_tone, sizeof(int) * high_len, cudaMemcpyHostToDevice);
-        cudaMemcpy(device_majorHighDur, hign_dur, sizeof(int) * high_len, cudaMemcpyHostToDevice);
-        note_kernel<<<1, NUM_THREADS>>>(device_majorHighTone, device_majorHighDur, device_majorHighNotes, high_len, tune);
+        cudaMemcpy(device_majorHighBuff, high_buff, sizeof(note_info) * high_len, cudaMemcpyHostToDevice);
+        cudaMemcpy(device_majorLowBuff, low_buff, sizeof(note_info) * low_len, cudaMemcpyHostToDevice);
+    }
+}
 
-        cudaMemcpy(device_majorLowTone, low_tone, sizeof(int) * low_len, cudaMemcpyHostToDevice);
-        cudaMemcpy(device_majorLowDur, low_dur, sizeof(int) * low_len, cudaMemcpyHostToDevice);
-        note_kernel<<<1, NUM_THREADS>>>(device_minorLowTone, device_minorLowDur, device_majorLowNotes, low_len, tune);
-
-        cudaMemcpy(device_majorLowTone, low_tone, sizeof(int) * low_len, cudaMemcpyHostToDevice);
-        cudaMemcpy(device_minorHighTone, high_tone, sizeof(int) * high_len, cudaMemcpyHostToDevice);
-        chord_kernel<<<1, NUM_THREADS>>>(device_majorLowTone, device_majorChords, low_len);
-        chord_kernel<<<1, NUM_THREADS>>>(device_majorHighTone, device_majorChords, high_len);
+void cuda_note_count(int high_len, int low_len, int is_major) {
+    if (is_major == 0)
+    {     
+        note_kernel<<<1, NUM_THREADS>>>(device_minorHighBuff,device_minorHighNotes, high_len);
+        note_kernel<<<1, NUM_THREADS>>>(device_minorLowBuff, device_minorLowNotes, low_len);
+        chord_kernel<<<1, NUM_THREADS>>>(device_minorLowBuff, device_minorChords, low_len);
+        chord_kernel<<<1, NUM_THREADS>>>(device_minorHighBuff, device_minorChords, high_len);
+    }
+    else if (is_major == 1)
+    {
+        note_kernel<<<1, NUM_THREADS>>>(device_majorHighBuff, device_majorHighNotes, high_len);
+        note_kernel<<<1, NUM_THREADS>>>(device_minorLowBuff, device_majorLowNotes, low_len);
+        chord_kernel<<<1, NUM_THREADS>>>(device_majorLowBuff, device_majorChords, low_len);
+        chord_kernel<<<1, NUM_THREADS>>>(device_majorHighBuff, device_majorChords, high_len);
     }
 }

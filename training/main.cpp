@@ -14,15 +14,16 @@ int* minor_low;
 int* major_chord;
 int* minor_chord;
 
-// host pinned-memory
-int* majorHighTone;
-int* majorHighDur;
-int* majorLowTone;
-int* majorLowDur;
-int* minorHighTone;
-int* minorHighDur;
-int* minorLowTone;
-int* minorLowDur;
+// buffer
+note_info* majorHighBuff;
+note_info* majorLowBuff;
+note_info* minorHighBuff;
+note_info* minorLowBuff;
+
+int major_high_len;
+int major_low_len;
+int minor_high_len;
+int minor_low_len;
 
 void matrix_alloc() {
     // Allocation of major & minor notes transfer matrices //
@@ -45,26 +46,19 @@ void free_matrix() {
     free(minor_chord);
 }
 
-void cuda_pinned_alloc() {
-    cudaHostAlloc(&majorHighTone, sizeof(int) * BUFFER_LEN, cudaHostAllocMapped);
-    cudaHostAlloc(&majorHighDur, sizeof(int) * BUFFER_LEN, cudaHostAllocMapped);
-    cudaHostAlloc(&majorLowTone, sizeof(int) * BUFFER_LEN, cudaHostAllocMapped);
-    cudaHostAlloc(&majorLowDur, sizeof(int) * BUFFER_LEN, cudaHostAllocMapped);
-    cudaHostAlloc(&minorHighTone, sizeof(int) * BUFFER_LEN, cudaHostAllocMapped);
-    cudaHostAlloc(&minorHighDur, sizeof(int) * BUFFER_LEN, cudaHostAllocMapped);
-    cudaHostAlloc(&minorLowTone, sizeof(int) * BUFFER_LEN, cudaHostAllocMapped);
-    cudaHostAlloc(&minorLowDur, sizeof(int) * BUFFER_LEN, cudaHostAllocMapped);
+void buffer_alloc() {
+    // Allocation of major & minor notes transfer matrices //
+    majorHighBuff = (note_info*)malloc(sizeof(note_info) * BUFFER_LEN);
+    majorLowBuff = (note_info*)malloc(sizeof(note_info) * BUFFER_LEN);
+    minorHighBuff = (note_info*)malloc(sizeof(note_info) * BUFFER_LEN);
+    minorLowBuff = (note_info*)malloc(sizeof(note_info) * BUFFER_LEN);
 }
 
-void cuda_pinned_free() {
-    cudaFreeHost(majorHighTone);
-    cudaFreeHost(majorHighDur);
-    cudaFreeHost(majorLowTone);
-    cudaFreeHost(majorLowDur);
-    cudaFreeHost(minorHighTone);
-    cudaFreeHost(minorHighDur);
-    cudaFreeHost(minorLowTone);
-    cudaFreeHost(minorLowDur);
+void free_buffer() {
+    free(majorHighBuff);
+    free(majorLowBuff);
+    free(minorHighBuff);
+    free(minorLowBuff);
 }
 
 void remove_old() {
@@ -83,6 +77,100 @@ void rename_new() {
     std::rename("MinorLowMatrixTemp.txt", "MinorLowMatrix.txt");
     std::rename("ChordHighMatrixTemp.txt", "ChordHighMatrix.txt");
     std::rename("ChordLowMatrixTemp.txt", "ChordLowMatrix.txt");
+}
+
+bool file_parsing(char* major_path, char* minor_path) {
+    int curr_tone = 0;
+    int curr_dur = 0;
+    int tune = 1;
+    int newMidi_flag = 0;
+    size_t split_idx;
+
+    // Major Notes
+    major_low_len = 0;
+    major_high_len = 0;
+    std::cout << "Start major notes parsing" << std::endl;
+    std::ifstream major_file(major_path);
+    if (!major_file) {
+        std::cerr << "Cannot open " << major_path << " !" <<std::endl;
+        return false;
+    }
+    std::string line;
+    while (std::getline(major_file, line)) {
+        if (line.find('S') != std::string::npos && newMidi_flag == 0) { // start of a midi file
+            newMidi_flag = 1;
+        }
+        if (line.find('L') != std::string::npos) { // low melody
+            tune = 1;
+        }
+        else if (line.find('H') != std::string::npos) { // high melody
+            tune = 2;
+        }
+        else if (line.find('X') != std::string::npos) { // end of a midi file
+            newMidi_flag = 0;
+        }
+        else if ((split_idx = line.find(' ')) != std::string::npos) {
+            curr_tone = std::stoi(line.substr(0, split_idx));
+            curr_dur = std::stoi(line.substr(split_idx));
+            // first note do nothing
+            if (tune == 1) {
+                majorLowBuff[major_low_len].tone = curr_tone;
+                majorLowBuff[major_low_len].dur = curr_dur;
+                majorLowBuff[major_low_len].tune = tune;
+                major_low_len++;
+            } 
+            else if (tune == 2) {
+                majorHighBuff[major_high_len].tone = curr_tone;
+                majorHighBuff[major_high_len].dur = curr_dur;
+                majorHighBuff[major_high_len].tune = tune;
+                major_high_len++;
+            }
+        }
+    }
+    major_file.close();
+
+    // Minor Notes
+    minor_low_len = 0;
+    minor_high_len = 0;
+    std::cout << "Start minor notes parsing" << std::endl;
+    std::ifstream minor_file(minor_path);
+    if (!minor_file) {
+        std::cerr << "Cannot open " << minor_path << " !" <<std::endl;
+        return false;        
+    }
+    while (std::getline(minor_file, line)) {
+        if (line.find('S') != std::string::npos && newMidi_flag == 0) { // start of a midi file
+            newMidi_flag = 1;
+        }
+        if (line.find('L') != std::string::npos) { // low melody
+            tune = 1;
+        }
+        else if (line.find('H') != std::string::npos) { // high melody
+            tune = 2;
+        }
+        else if (line.find('X') != std::string::npos) { // end of a midi file
+            newMidi_flag = 0;
+        }
+        else if ((split_idx = line.find(' ')) != std::string::npos) {
+            curr_tone = std::stoi(line.substr(0, split_idx));
+            curr_dur = std::stoi(line.substr(split_idx));
+            // first note do nothing
+            if (tune == 1) {
+                minorLowBuff[minor_low_len].tone = curr_tone;
+                minorLowBuff[minor_low_len].dur = curr_dur;
+                minorLowBuff[minor_low_len].tune = tune;
+                minor_low_len++;
+            } 
+            else if (tune == 2) {
+                minorHighBuff[minor_high_len].tone = curr_tone;
+                minorHighBuff[minor_high_len].dur = curr_dur;
+                minorHighBuff[minor_high_len].tune = tune;
+                minor_high_len++;
+            }
+        }
+    }
+    minor_file.close();
+    return true;
 }
 
 /**
@@ -232,13 +320,12 @@ int main(int argc, char** argv) {
     using std::chrono::milliseconds;
 
     // allocate matrices
-    matrix_alloc();
-
     auto t_start = high_resolution_clock::now();
-    cuda_pinned_alloc();
+    matrix_alloc();
+    buffer_alloc();
     auto t_end = high_resolution_clock::now();
     auto t_spent = duration_cast<milliseconds>(t_end - t_start);
-    std::cout << "Time spent for host pinned memory allocation: " << t_spent.count() << "ms\n";
+    std::cout << "Time spent for host memory allocation: " << t_spent.count() << "ms\n";
 
     t_start = high_resolution_clock::now();
     cuda_malloc();
@@ -246,172 +333,38 @@ int main(int argc, char** argv) {
     t_spent = duration_cast<milliseconds>(t_end - t_start);
     std::cout << "Time spent for device memory allocation: " << t_spent.count() << "ms\n";
 
-    int major_tune = 1;
-    int major_curr_tone = -1;
-    int major_curr_dur = -1;
-    int major_prev_tone_1 = -1;
-    int major_prev_dur_1 = -1;
-    int minor_tune = 1;
-    int minor_curr_tone = -1;
-    int minor_curr_dur = -1;
-    int minor_prev_tone_1 = -1;
-    int minor_prev_dur_1 = -1;
-    int is_major = 1;
-    int major_new_Midi = 0;
-    int minor_new_Midi = 0;
-
-    int high_len = 0;
-    int low_len = 0;
-    int num_finished = 0;
-
-    size_t split_idx;
-    std::string line;
+    std::cout << "Start parsing major & minor txt files" << std::endl;
+    success = file_parsing(major_path, minor_path);
+    if (success) {
+        std::cout << "File parsing successed" << std::endl;
+    } else {
+        std::cout << "File parsing failed" << std::endl;
+    }
 
     // markov training through GPU
-    std::cout << "Start parsing major & minor txt files" << std::endl;
     t_start = high_resolution_clock::now();
-    std::ifstream major_file(major_path);
-    if (!major_file) {
-        std::cerr << "Cannot open " << major_path << " !" <<std::endl;
-        return false;
-    }
-    std::ifstream minor_file(minor_path);
-    if (!minor_file) {
-        std::cerr << "Cannot open " << minor_path << " !" <<std::endl;
-        return false;        
-    }
-
-    while (num_finished != 2) {
-        if (is_major == 1) // major file
-        { 
-            if (!std::getline(major_file, line)) {
-                cuda_note_count(majorHighTone, majorHighDur, majorLowTone, majorLowDur, high_len, low_len, is_major, major_tune);
-                // cuda_stream_synch(is_major);
-                high_len = 0;
-                low_len = 0;
-                is_major = 0;
-                num_finished++;
-                continue;
-            }
-            if (line.find('S') != std::string::npos && major_new_Midi == 0) { // start of a midi file
-                major_curr_tone = -1;
-                major_curr_dur = -1; 
-                major_prev_tone_1 = -1; 
-                major_prev_dur_1 = -1; 
-                major_new_Midi = 1;
-                continue;
-            }
-            if (line.find('L') != std::string::npos) { // low melody
-                major_tune = 1;
-                continue;
-            }
-            else if (line.find('H') != std::string::npos) { // high melody
-                major_tune = 2;
-                continue;
-            }
-            else if (line.find('X') != std::string::npos) { // end of a midi file
-                major_new_Midi = 0;
-                continue;
-            }
-            else if ((split_idx = line.find(' ')) != std::string::npos) {
-                major_curr_tone = std::stoi(line.substr(0, split_idx));
-                major_curr_dur = std::stoi(line.substr(split_idx));                
-                if (major_tune == 1) {
-                    majorLowTone[low_len] = major_curr_tone;
-                    majorLowDur[low_len] = major_curr_dur;
-                    low_len++;
-                }
-                else if (major_tune == 2) {
-                    majorHighTone[high_len] = major_curr_tone;
-                    majorHighDur[high_len] = major_curr_dur;
-                    high_len++;
-                }
-
-                major_prev_tone_1 = major_curr_tone;
-                major_prev_dur_1 = major_curr_dur;
-
-                if (high_len > BUFFER_LEN || low_len > BUFFER_LEN) {
-                    cuda_note_count(majorHighTone, majorHighDur, majorLowTone, majorLowDur, high_len, low_len, is_major, major_tune);
-                    // cuda_stream_synch(is_major);
-                    high_len = 0;
-                    low_len = 0;
-                    is_major = 0;
-                    continue;
-                }
-            }
-        }
-        else // minor file
-        {
-            if (!std::getline(minor_file, line)) {
-                cuda_note_count(minorHighTone, minorHighDur, minorLowTone, minorLowDur, high_len, low_len, is_major, minor_tune);
-                // cuda_stream_synch(is_major);
-                high_len = 0;
-                low_len = 0;
-                is_major = 1;
-                num_finished++;
-                continue;
-            }
-            if (line.find('S') != std::string::npos && minor_new_Midi == 0) { // start of a midi file
-                minor_curr_tone = -1;
-                minor_curr_dur = -1; 
-                minor_prev_tone_1 = -1; 
-                minor_prev_dur_1 = -1; 
-                minor_new_Midi = 1;
-                continue;
-            }
-            if (line.find('L') != std::string::npos) { // low melody
-                minor_tune = 1;
-                continue;
-            }
-            else if (line.find('H') != std::string::npos) { // high melody
-                minor_tune = 2;
-                continue;
-            }
-            else if (line.find('X') != std::string::npos) { // end of a midi file
-                minor_new_Midi = 0;
-                continue;
-            }
-            else if ((split_idx = line.find(' ')) != std::string::npos) {
-                minor_curr_tone = std::stoi(line.substr(0, split_idx));
-                minor_curr_dur = std::stoi(line.substr(split_idx));                
-                if (minor_tune == 1) {
-                    minorLowTone[low_len] = minor_curr_tone;
-                    minorLowDur[low_len] = minor_curr_dur;
-                    low_len++;
-                } 
-                else if (minor_tune == 2) {
-                    minorHighTone[high_len] = minor_curr_tone;
-                    minorHighDur[high_len] = minor_curr_dur;
-                    high_len++;
-                }
-
-                minor_prev_tone_1 = minor_curr_tone;
-                minor_prev_dur_1 = minor_curr_dur;
-
-                if (high_len > BUFFER_LEN || low_len > BUFFER_LEN) {
-                    cuda_note_count(minorHighTone, minorHighDur, minorLowTone, minorLowDur, high_len, low_len, is_major, minor_tune);
-                    // cuda_stream_synch(is_major);
-                    high_len = 0;
-                    low_len = 0;
-                    is_major = 1;
-                    continue;
-                }
-            }
-        }
-    }
-
+    buffer_copy(minorHighBuff, minorLowBuff, minor_high_len, minor_low_len, 0);
+    buffer_copy(majorHighBuff, majorLowBuff, major_high_len, major_low_len, 1);
     t_end = high_resolution_clock::now();
     t_spent = duration_cast<milliseconds>(t_end - t_start);
-    std::cout << "File parsing completed" << std::endl;
-    std::cout << "Time spent for file parsing: " << t_spent.count() << "ms\n";
+    std::cout << "Time spent for buffer copy: " << t_spent.count() << "ms\n";   
+
+    // markov training through GPU
+    t_start = high_resolution_clock::now();
+    cuda_note_count(minor_high_len, minor_low_len, 0);
+    cuda_note_count(major_high_len, major_low_len, 1);
+    cudaDeviceSynchronize();
+    t_end = high_resolution_clock::now();
+    t_spent = duration_cast<milliseconds>(t_end - t_start);
+    std::cout << "Time spent for matrix generation: " << t_spent.count() << "ms\n";   
 
     // copy memory back to host
     t_start = high_resolution_clock::now();
     cuda_to_host();
+    cudaDeviceSynchronize();
     t_end = high_resolution_clock::now();
     t_spent = duration_cast<milliseconds>(t_end - t_start);
     std::cout << "Time spent for copy back to host: " << t_spent.count() << "ms\n";   
-    std::cout << "Matrix generation successed" << std::endl;
     
     // output matrices to txt files
     success = matrix_output();
@@ -423,11 +376,12 @@ int main(int argc, char** argv) {
 
     // free memory allocated
     t_start = high_resolution_clock::now();
-    cuda_pinned_free();
+    free_buffer();
     cuda_free();
+    free_matrix();
+    cudaDeviceSynchronize();
     t_end = high_resolution_clock::now();
     t_spent = duration_cast<milliseconds>(t_end - t_start);
     std::cout << "Time spent for free host and device memory: " << t_spent.count() << "ms\n";
-    free_matrix();
     return 0;
 }

@@ -1,6 +1,6 @@
 #include <iostream>
 #include <string>
-#include <fstream>
+#include <fstream>      
 #include <chrono>
 #include "markov.h"
 
@@ -11,6 +11,17 @@ int* minor_high;
 int* minor_low;
 int* major_chord;
 int* minor_chord;
+
+// buffer
+note_info* majorHighBuff;
+note_info* majorLowBuff;
+note_info* minorHighBuff;
+note_info* minorLowBuff;
+
+int major_high_len;
+int major_low_len;
+int minor_high_len;
+int minor_low_len;
 
 void matrix_alloc() {
     // Allocation of major & minor notes transfer matrices //
@@ -33,6 +44,21 @@ void free_matrix() {
     free(minor_chord);
 }
 
+void buffer_alloc() {
+    // Allocation of major & minor notes transfer matrices //
+    majorHighBuff = (note_info*)malloc(sizeof(note_info) * BUFFER_LEN);
+    majorLowBuff = (note_info*)malloc(sizeof(note_info) * BUFFER_LEN);
+    minorHighBuff = (note_info*)malloc(sizeof(note_info) * BUFFER_LEN);
+    minorLowBuff = (note_info*)malloc(sizeof(note_info) * BUFFER_LEN);
+}
+
+void free_buffer() {
+    free(majorHighBuff);
+    free(majorLowBuff);
+    free(minorHighBuff);
+    free(minorLowBuff);
+}
+
 void remove_old() {
     remove("MajorHighMatrix.txt");
     remove("MajorLowMatrix.txt");
@@ -52,7 +78,7 @@ void rename_new() {
 }
 
 /** 
- * @brief Compute index of note matrix according to current, previous, before previous tone and duration
+ * @brief Compute index of note matrix according to current and previous tone & duration
  * 
  * @param curr_tone     Current tone
  * @param curr_dur      Duration of current tone
@@ -70,7 +96,6 @@ inline int get_note_index(int curr_tone, int curr_dur, int prev_tone_1, int prev
         } else {
             prev_tone_1 = curr_tone - (curr_tone % 12) + prev_tone_1;
         }
-
     }
 
     int row;
@@ -98,16 +123,16 @@ inline int get_chord_index(int curr_tone, int prev_tone) {
     return prev_tone * NUM_CHORD + (curr_tone - CHORD_BASE);
 }
 
-bool matrix_generation(char* major_path, char* minor_path) {
-    int curr_tone = -1;
-    int curr_dur = -1;
-    int prev_tone_1 = -1;
-    int prev_dur_1 = -1;
+bool file_parsing(char* major_path, char* minor_path) {
+    int curr_tone = 0;
+    int curr_dur = 0;
     int tune = 1;
-    size_t split_idx;
-    int cell_idx;
     int newMidi_flag = 0;
+    size_t split_idx;
+
     // Major Notes
+    major_low_len = 0;
+    major_high_len = 0;
     std::cout << "Start major notes parsing" << std::endl;
     std::ifstream major_file(major_path);
     if (!major_file) {
@@ -117,10 +142,6 @@ bool matrix_generation(char* major_path, char* minor_path) {
     std::string line;
     while (std::getline(major_file, line)) {
         if (line.find('S') != std::string::npos && newMidi_flag == 0) { // start of a midi file
-            curr_tone = -1;
-            curr_dur = -1; 
-            prev_tone_1 = -1; 
-            prev_dur_1 = -1; 
             newMidi_flag = 1;
         }
         if (line.find('L') != std::string::npos) { // low melody
@@ -136,28 +157,25 @@ bool matrix_generation(char* major_path, char* minor_path) {
             curr_tone = std::stoi(line.substr(0, split_idx));
             curr_dur = std::stoi(line.substr(split_idx));
             // first note do nothing
-            if (curr_tone < CHORD_BASE && prev_tone_1 != -1) { // second note
-                cell_idx = get_note_index(curr_tone, curr_dur, prev_tone_1, prev_dur_1, tune);
-                if (tune == 1) {
-                    major_low[cell_idx]++;
-                } 
-                else if (tune == 2) {
-                    major_high[cell_idx]++;
-                }
+            if (tune == 1) {
+                majorLowBuff[major_low_len].tone = curr_tone;
+                majorLowBuff[major_low_len].dur = curr_dur;
+                majorLowBuff[major_low_len].tune = tune;
+                major_low_len++;
+            } 
+            else if (tune == 2) {
+                majorHighBuff[major_high_len].tone = curr_tone;
+                majorHighBuff[major_high_len].dur = curr_dur;
+                majorHighBuff[major_high_len].tune = tune;
+                major_high_len++;
             }
-            else if (curr_tone >= CHORD_BASE && prev_tone_1 != -1) {
-                cell_idx = get_chord_index(curr_tone, prev_tone_1);
-                if (cell_idx != -1) {
-                    major_chord[cell_idx]++;
-                }
-            }
-            prev_tone_1 = curr_tone;
-            prev_dur_1 = curr_dur;
         }
     }
     major_file.close();
 
     // Minor Notes
+    minor_low_len = 0;
+    minor_high_len = 0;
     std::cout << "Start minor notes parsing" << std::endl;
     std::ifstream minor_file(minor_path);
     if (!minor_file) {
@@ -166,10 +184,6 @@ bool matrix_generation(char* major_path, char* minor_path) {
     }
     while (std::getline(minor_file, line)) {
         if (line.find('S') != std::string::npos && newMidi_flag == 0) { // start of a midi file
-            curr_tone = -1;
-            curr_dur = -1; 
-            prev_tone_1 = -1; 
-            prev_dur_1 = -1; 
             newMidi_flag = 1;
         }
         if (line.find('L') != std::string::npos) { // low melody
@@ -185,27 +199,106 @@ bool matrix_generation(char* major_path, char* minor_path) {
             curr_tone = std::stoi(line.substr(0, split_idx));
             curr_dur = std::stoi(line.substr(split_idx));
             // first note do nothing
-            if (curr_tone < CHORD_BASE && prev_tone_1 != -1) { // second note
-                cell_idx = get_note_index(curr_tone, curr_dur, prev_tone_1, prev_dur_1, tune);
-                if (tune == 1) {
-                    minor_low[cell_idx]++;
-                } 
-                else if (tune == 2) {
-                    minor_high[cell_idx]++;
-                }
+            if (tune == 1) {
+                minorLowBuff[minor_low_len].tone = curr_tone;
+                minorLowBuff[minor_low_len].dur = curr_dur;
+                minorLowBuff[minor_low_len].tune = tune;
+                minor_low_len++;
             } 
-            else if (curr_tone >= CHORD_BASE && prev_tone_1 != -1) {
-                cell_idx = get_chord_index(curr_tone, prev_tone_1);
-                if (cell_idx != -1) {
-                    minor_chord[cell_idx]++;
-                }
+            else if (tune == 2) {
+                minorHighBuff[minor_high_len].tone = curr_tone;
+                minorHighBuff[minor_high_len].dur = curr_dur;
+                minorHighBuff[minor_high_len].tune = tune;
+                minor_high_len++;
             }
-            prev_tone_1 = curr_tone;
-            prev_dur_1 = curr_dur;
         }
     }
     minor_file.close();
     return true;
+}
+
+void matrix_generation() {
+    int i;
+    int index, curr_tone, curr_dur, prev_tone, prev_dur, tune;
+    for (i = 1; i < major_high_len; i++) {
+        curr_tone = majorHighBuff[i].tone;
+        curr_dur = majorHighBuff[i].dur;
+        tune = majorHighBuff[i].tune;
+        prev_tone = majorHighBuff[i - 1].tone;
+        prev_dur = majorHighBuff[i - 1].dur;
+        if (curr_tone < CHORD_BASE && prev_tone != -1) {
+            index = get_note_index(curr_tone, curr_dur, prev_tone, prev_dur, tune);
+            if (index != -1) {
+                major_high[index]++;
+            }
+        }
+        else if (curr_tone >= CHORD_BASE && prev_tone != -1) {
+            index = get_chord_index(curr_tone, prev_tone);
+            if (index != -1) {
+                major_chord[index]++;
+            }
+        }
+    }
+
+    for (i = 1; i < major_low_len; i++) {
+        curr_tone = majorLowBuff[i].tone;
+        curr_dur = majorLowBuff[i].dur;
+        tune = majorLowBuff[i].tune;
+        prev_tone = majorLowBuff[i - 1].tone;
+        prev_dur = majorLowBuff[i - 1].dur;
+        if (curr_tone < CHORD_BASE && prev_tone != -1) {
+            index = get_note_index(curr_tone, curr_dur, prev_tone, prev_dur, tune);
+            if (index != -1) {
+                major_low[index]++;
+            }
+        }
+        else if (curr_tone >= CHORD_BASE && prev_tone != -1) {
+            index = get_chord_index(curr_tone, prev_tone);
+            if (index != -1) {
+                major_chord[index]++;
+            }
+        }
+    }
+
+    for (i = 1; i < minor_high_len; i++) {
+        curr_tone = minorHighBuff[i].tone;
+        curr_dur = minorHighBuff[i].dur;
+        tune = minorHighBuff[i].tune;
+        prev_tone = minorHighBuff[i - 1].tone;
+        prev_dur = minorHighBuff[i - 1].dur;
+        if (curr_tone < CHORD_BASE && prev_tone != -1) {
+            index = get_note_index(curr_tone, curr_dur, prev_tone, prev_dur, tune);
+            if (index != -1) {
+                minor_high[index]++;
+            }
+        }
+        else if (curr_tone >= CHORD_BASE && prev_tone != -1) {
+            index = get_chord_index(curr_tone, prev_tone);
+            if (index != -1) {
+                minor_chord[index]++;
+            }
+        }
+    }
+
+    for (i = 1; i < minor_low_len; i++) {
+        curr_tone = minorLowBuff[i].tone;
+        curr_dur = minorLowBuff[i].dur;
+        tune = minorLowBuff[i].tune;
+        prev_tone = minorLowBuff[i - 1].tone;
+        prev_dur = minorLowBuff[i - 1].dur;
+        if (curr_tone < CHORD_BASE && prev_tone != -1) {
+            index = get_note_index(curr_tone, curr_dur, prev_tone, prev_dur, tune);
+            if (index != -1) {
+                minor_low[index]++;
+            }
+        }
+        else if (curr_tone >= CHORD_BASE && prev_tone != -1) {
+            index = get_chord_index(curr_tone, prev_tone);
+            if (index != -1) {
+                minor_chord[index]++;
+            }
+        }
+    }
 }
 
 /**
@@ -345,28 +438,39 @@ int main(int argc, char** argv) {
         exit(0);
     }
     std::cout << "Start matrix generation" << std::endl;
-    matrix_alloc();
-    bool success;
-    char* major_path = argv[1];
-    char* minor_path = argv[2];
 
     using std::chrono::high_resolution_clock;
     using std::chrono::duration_cast;
     using std::chrono::duration;
     using std::chrono::milliseconds;
 
+    bool success;
+    char* major_path = argv[1];
+    char* minor_path = argv[2];
+
+    // allocate matrices
     auto t_start = high_resolution_clock::now();
-    success = matrix_generation(major_path, minor_path);
-    if (success) {
-        std::cout << "Matrix generation successed" << std::endl;
-    } else {
-        std::cout << "Matrix generation failed" << std::endl;
-    }
+    matrix_alloc();
+    buffer_alloc();
     auto t_end = high_resolution_clock::now();
     auto t_spent = duration_cast<milliseconds>(t_end - t_start);
+    std::cout << "Time spent for host memory allocation: " << t_spent.count() << "ms\n";
+
+    std::cout << "Start parsing major & minor txt files" << std::endl;
+    success = file_parsing(major_path, minor_path);
+    if (success) {
+        std::cout << "File parsing successed" << std::endl;
+    } else {
+        std::cout << "File parsing failed" << std::endl;
+    }
+
+    t_start = high_resolution_clock::now();
+    matrix_generation();
+    t_end = high_resolution_clock::now();
+    t_spent = duration_cast<milliseconds>(t_end - t_start);
     std::cout << "Time spent for matrix generation: " << t_spent.count() << "ms\n";
 
-
+    // output matrices to txt files 
     success = matrix_output();
     if (success) {
         std::cout << "Matrix output successed" << std::endl;
@@ -374,6 +478,11 @@ int main(int argc, char** argv) {
         std::cout << "Matrix output failed" << std::endl;
     }
 
+    t_start = high_resolution_clock::now();
+    free_buffer();
     free_matrix();
+    t_end = high_resolution_clock::now();
+    t_spent = duration_cast<milliseconds>(t_end - t_start);
+    std::cout << "Time spent for free host and device memory: " << t_spent.count() << "ms\n";
     return 0;
 }
