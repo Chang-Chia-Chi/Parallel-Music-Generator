@@ -6,7 +6,7 @@
 #define NUM_CHORD 1728
 #define NUM_NOTE NUM_TONE * NUM_DURATION
 #define CHORD_BASE 99
-#define BUFFER_LEN 30000000
+#define BUFFER_LEN 7500000
 #define NUM_THREADS 1024
 
 struct note_info {
@@ -40,14 +40,14 @@ extern int* device_majorChords;
 extern int* device_minorChords;
 
 // cuda functions called by main
-void cuda_note_count(note_info* high_buff, note_info* low_buff, int high_len, int low_len, int is_major);
-void buffer_copy(note_info* high_buff, note_info* low_buff, int high_len, int low_len, int is_major);
+void cuda_note_count(int major_high_len, int major_low_len, int minor_high_len, int minor_low_len);
+void buffer_copy(note_info* major_high_buff, note_info* majorlow_buff, int major_high_len, int major_low_len,
+                 note_info* minor_high_buff, note_info* minorlow_buff, int minor_high_len, int minor_low_len);
+void matrix_alloc();
+void free_matrix();
 void cuda_malloc();
-void cuda_stream_create();
 void cuda_to_host();
 void cuda_free();
 void cuda_note_count(int high_len, int low_len, int is_major);
-void cuda_stream_destroy();
-void cuda_stream_synch(int is_major);
 
 #endif 

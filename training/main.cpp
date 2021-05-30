@@ -6,60 +6,10 @@
 #include <cuda_runtime.h>
 #include "markov.h"
 
-// global variable
-int* major_high;
-int* major_low;
-int* minor_high;
-int* minor_low;
-int* major_chord;
-int* minor_chord;
-
-// buffer
-note_info* majorHighBuff;
-note_info* majorLowBuff;
-note_info* minorHighBuff;
-note_info* minorLowBuff;
-
 int major_high_len;
 int major_low_len;
 int minor_high_len;
 int minor_low_len;
-
-void matrix_alloc() {
-    // Allocation of major & minor notes transfer matrices //
-    major_high = (int*)malloc(sizeof(int) * (NUM_NOTE * NUM_NOTE));
-    major_low = (int*)malloc(sizeof(int) * (NUM_NOTE * NUM_NOTE));
-    minor_high = (int*)malloc(sizeof(int) * (NUM_NOTE * NUM_NOTE));
-    minor_low = (int*)malloc(sizeof(int) * (NUM_NOTE * NUM_NOTE));
-
-    // Allocation of major & minor chords transfer matrices //
-    major_chord = (int*)malloc(sizeof(int) * (NUM_CHORD * NUM_CHORD));
-    minor_chord = (int*)malloc(sizeof(int) * (NUM_CHORD * NUM_CHORD));
-}
-
-void free_matrix() {
-    free(major_high);
-    free(major_low);
-    free(minor_high);
-    free(minor_low);
-    free(major_chord);
-    free(minor_chord);
-}
-
-void buffer_alloc() {
-    // Allocation of major & minor notes transfer matrices //
-    majorHighBuff = (note_info*)malloc(sizeof(note_info) * BUFFER_LEN);
-    majorLowBuff = (note_info*)malloc(sizeof(note_info) * BUFFER_LEN);
-    minorHighBuff = (note_info*)malloc(sizeof(note_info) * BUFFER_LEN);
-    minorLowBuff = (note_info*)malloc(sizeof(note_info) * BUFFER_LEN);
-}
-
-void free_buffer() {
-    free(majorHighBuff);
-    free(majorLowBuff);
-    free(minorHighBuff);
-    free(minorLowBuff);
-}
 
 void remove_old() {
     remove("MajorHighMatrix.txt");
@@ -96,7 +46,7 @@ bool file_parsing(char* major_path, char* minor_path) {
         return false;
     }
     std::string line;
-    while (std::getline(major_file, line)) {
+    while (std::getline(major_file, line) && major_high_len < BUFFER_LEN && major_low_len < BUFFER_LEN) {
         if (line.find('S') != std::string::npos && newMidi_flag == 0) { // start of a midi file
             newMidi_flag = 1;
         }
@@ -138,7 +88,7 @@ bool file_parsing(char* major_path, char* minor_path) {
         std::cerr << "Cannot open " << minor_path << " !" <<std::endl;
         return false;        
     }
-    while (std::getline(minor_file, line)) {
+    while (std::getline(minor_file, line) && minor_high_len < BUFFER_LEN && minor_low_len < BUFFER_LEN) {
         if (line.find('S') != std::string::npos && newMidi_flag == 0) { // start of a midi file
             newMidi_flag = 1;
         }
@@ -319,20 +269,12 @@ int main(int argc, char** argv) {
     using std::chrono::duration;
     using std::chrono::milliseconds;
 
-    // allocate matrices
-    auto t_start = high_resolution_clock::now();
+    // allocate host memory
     matrix_alloc();
-    buffer_alloc();
-    auto t_end = high_resolution_clock::now();
-    auto t_spent = duration_cast<milliseconds>(t_end - t_start);
-    std::cout << "Time spent for host memory allocation: " << t_spent.count() << "ms\n";
 
-    t_start = high_resolution_clock::now();
+    // allocate device memory
     cuda_malloc();
-    t_end = high_resolution_clock::now();
-    t_spent = duration_cast<milliseconds>(t_end - t_start);
-    std::cout << "Time spent for device memory allocation: " << t_spent.count() << "ms\n";
-
+    
     std::cout << "Start parsing major & minor txt files" << std::endl;
     success = file_parsing(major_path, minor_path);
     if (success) {
@@ -342,31 +284,16 @@ int main(int argc, char** argv) {
     }
 
     // markov training through GPU
-    t_start = high_resolution_clock::now();
-    buffer_copy(minorHighBuff, minorLowBuff, minor_high_len, minor_low_len, 0);
-    buffer_copy(majorHighBuff, majorLowBuff, major_high_len, major_low_len, 1);
-    t_end = high_resolution_clock::now();
-    t_spent = duration_cast<milliseconds>(t_end - t_start);
-    std::cout << "Time spent for buffer copy: " << t_spent.count() << "ms\n";   
+    buffer_copy(majorHighBuff, majorLowBuff, major_high_len, major_low_len,
+                minorHighBuff, minorLowBuff, minor_high_len, minor_low_len);
 
     // markov training through GPU
-    t_start = high_resolution_clock::now();
-    cuda_note_count(minor_high_len, minor_low_len, 0);
-    cuda_note_count(major_high_len, major_low_len, 1);
-    cudaDeviceSynchronize();
-    t_end = high_resolution_clock::now();
-    t_spent = duration_cast<milliseconds>(t_end - t_start);
-    std::cout << "Time spent for matrix generation: " << t_spent.count() << "ms\n";   
+    cuda_note_count(major_high_len, major_low_len, minor_high_len, minor_low_len);
 
     // copy memory back to host
-    t_start = high_resolution_clock::now();
     cuda_to_host();
-    cudaDeviceSynchronize();
-    t_end = high_resolution_clock::now();
-    t_spent = duration_cast<milliseconds>(t_end - t_start);
-    std::cout << "Time spent for copy back to host: " << t_spent.count() << "ms\n";   
     
-    // output matrices to txt files
+    //  output matrices to txt files
     success = matrix_output();
     if (success) {
         std::cout << "Matrix output successed" << std::endl;
@@ -375,13 +302,7 @@ int main(int argc, char** argv) {
     }
 
     // free memory allocated
-    t_start = high_resolution_clock::now();
-    free_buffer();
     cuda_free();
     free_matrix();
-    cudaDeviceSynchronize();
-    t_end = high_resolution_clock::now();
-    t_spent = duration_cast<milliseconds>(t_end - t_start);
-    std::cout << "Time spent for free host and device memory: " << t_spent.count() << "ms\n";
     return 0;
 }

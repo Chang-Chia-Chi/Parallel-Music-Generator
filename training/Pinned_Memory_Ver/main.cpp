@@ -1,63 +1,15 @@
 #include <iostream>
 #include <string>
-#include <fstream>      
+#include <fstream>
 #include <chrono>
+#include <cuda.h>
+#include <cuda_runtime.h>
 #include "markov.h"
-
-// global variable
-int* major_high;
-int* major_low;
-int* minor_high;
-int* minor_low;
-int* major_chord;
-int* minor_chord;
-
-// buffer
-note_info* majorHighBuff;
-note_info* majorLowBuff;
-note_info* minorHighBuff;
-note_info* minorLowBuff;
 
 int major_high_len;
 int major_low_len;
 int minor_high_len;
 int minor_low_len;
-
-void matrix_alloc() {
-    // Allocation of major & minor notes transfer matrices //
-    major_high = (int*)malloc(sizeof(int) * (NUM_NOTE * NUM_NOTE));
-    major_low = (int*)malloc(sizeof(int) * (NUM_NOTE * NUM_NOTE));
-    minor_high = (int*)malloc(sizeof(int) * (NUM_NOTE * NUM_NOTE));
-    minor_low = (int*)malloc(sizeof(int) * (NUM_NOTE * NUM_NOTE));
-
-    // Allocation of major & minor chords transfer matrices //
-    major_chord = (int*)malloc(sizeof(int) * (NUM_CHORD * NUM_CHORD));
-    minor_chord = (int*)malloc(sizeof(int) * (NUM_CHORD * NUM_CHORD));
-}
-
-void free_matrix() {
-    free(major_high);
-    free(major_low);
-    free(minor_high);
-    free(minor_low);
-    free(major_chord);
-    free(minor_chord);
-}
-
-void buffer_alloc() {
-    // Allocation of major & minor notes transfer matrices //
-    majorHighBuff = (note_info*)malloc(sizeof(note_info) * BUFFER_LEN);
-    majorLowBuff = (note_info*)malloc(sizeof(note_info) * BUFFER_LEN);
-    minorHighBuff = (note_info*)malloc(sizeof(note_info) * BUFFER_LEN);
-    minorLowBuff = (note_info*)malloc(sizeof(note_info) * BUFFER_LEN);
-}
-
-void free_buffer() {
-    free(majorHighBuff);
-    free(majorLowBuff);
-    free(minorHighBuff);
-    free(minorLowBuff);
-}
 
 void remove_old() {
     remove("MajorHighMatrix.txt");
@@ -75,52 +27,6 @@ void rename_new() {
     std::rename("MinorLowMatrixTemp.txt", "MinorLowMatrix.txt");
     std::rename("ChordHighMatrixTemp.txt", "ChordHighMatrix.txt");
     std::rename("ChordLowMatrixTemp.txt", "ChordLowMatrix.txt");
-}
-
-/** 
- * @brief Compute index of note matrix according to current and previous tone & duration
- * 
- * @param curr_tone     Current tone
- * @param curr_dur      Duration of current tone
- * @param prev_tone_1   Previous tone
- * @param prev_dur_1    Duration of previous tone
- */
-inline int get_note_index(int curr_tone, int curr_dur, int prev_tone_1, int prev_dur_1, int tune) {
-    int col = curr_tone * NUM_DURATION + curr_dur ;
-
-    // If previous tone is chord, get top note and find closest
-    if (prev_tone_1 >= CHORD_BASE) {
-        prev_tone_1 = (prev_tone_1 - CHORD_BASE) / 144; // Get top note
-        if (curr_tone == NUM_TONE - 1) { // if curr_tone is Rest
-            prev_tone_1 = prev_tone_1 + 12 * (2 * tune);
-        } else {
-            prev_tone_1 = curr_tone - (curr_tone % 12) + prev_tone_1;
-        }
-    }
-
-    int row;
-    row = prev_tone_1 * NUM_DURATION + prev_dur_1;
-
-    return row * NUM_NOTE + col;
-}   
-
-/** 
- * @brief Compute index of chord matrix according to current tone and previous tone
- * 
- * @param curr_tone      Current  tone
- * @param prev_tone      previous tone
- */
-inline int get_chord_index(int curr_tone, int prev_tone) {
-    if (prev_tone >= CHORD_BASE) {
-        prev_tone = prev_tone - CHORD_BASE;
-    } 
-    else if (prev_tone == NUM_TONE - 1) {
-        return -1;
-    } 
-    else {
-        prev_tone = (prev_tone % 12) + (prev_tone % 12) * 12 + (prev_tone % 12) * 144;
-    }
-    return prev_tone * NUM_CHORD + (curr_tone - CHORD_BASE);
 }
 
 bool file_parsing(char* major_path, char* minor_path) {
@@ -215,90 +121,6 @@ bool file_parsing(char* major_path, char* minor_path) {
     }
     minor_file.close();
     return true;
-}
-
-void matrix_generation() {
-    int i;
-    int index, curr_tone, curr_dur, prev_tone, prev_dur, tune;
-    for (i = 1; i < major_high_len; i++) {
-        curr_tone = majorHighBuff[i].tone;
-        curr_dur = majorHighBuff[i].dur;
-        tune = majorHighBuff[i].tune;
-        prev_tone = majorHighBuff[i - 1].tone;
-        prev_dur = majorHighBuff[i - 1].dur;
-        if (curr_tone < CHORD_BASE && prev_tone != -1) {
-            index = get_note_index(curr_tone, curr_dur, prev_tone, prev_dur, tune);
-            if (index != -1) {
-                major_high[index]++;
-            }
-        }
-        else if (curr_tone >= CHORD_BASE && prev_tone != -1) {
-            index = get_chord_index(curr_tone, prev_tone);
-            if (index != -1) {
-                major_chord[index]++;
-            }
-        }
-    }
-
-    for (i = 1; i < major_low_len; i++) {
-        curr_tone = majorLowBuff[i].tone;
-        curr_dur = majorLowBuff[i].dur;
-        tune = majorLowBuff[i].tune;
-        prev_tone = majorLowBuff[i - 1].tone;
-        prev_dur = majorLowBuff[i - 1].dur;
-        if (curr_tone < CHORD_BASE && prev_tone != -1) {
-            index = get_note_index(curr_tone, curr_dur, prev_tone, prev_dur, tune);
-            if (index != -1) {
-                major_low[index]++;
-            }
-        }
-        else if (curr_tone >= CHORD_BASE && prev_tone != -1) {
-            index = get_chord_index(curr_tone, prev_tone);
-            if (index != -1) {
-                major_chord[index]++;
-            }
-        }
-    }
-
-    for (i = 1; i < minor_high_len; i++) {
-        curr_tone = minorHighBuff[i].tone;
-        curr_dur = minorHighBuff[i].dur;
-        tune = minorHighBuff[i].tune;
-        prev_tone = minorHighBuff[i - 1].tone;
-        prev_dur = minorHighBuff[i - 1].dur;
-        if (curr_tone < CHORD_BASE && prev_tone != -1) {
-            index = get_note_index(curr_tone, curr_dur, prev_tone, prev_dur, tune);
-            if (index != -1) {
-                minor_high[index]++;
-            }
-        }
-        else if (curr_tone >= CHORD_BASE && prev_tone != -1) {
-            index = get_chord_index(curr_tone, prev_tone);
-            if (index != -1) {
-                minor_chord[index]++;
-            }
-        }
-    }
-
-    for (i = 1; i < minor_low_len; i++) {
-        curr_tone = minorLowBuff[i].tone;
-        curr_dur = minorLowBuff[i].dur;
-        tune = minorLowBuff[i].tune;
-        prev_tone = minorLowBuff[i - 1].tone;
-        prev_dur = minorLowBuff[i - 1].dur;
-        if (curr_tone < CHORD_BASE && prev_tone != -1) {
-            index = get_note_index(curr_tone, curr_dur, prev_tone, prev_dur, tune);
-            if (index != -1) {
-                minor_low[index]++;
-            }
-        }
-        else if (curr_tone >= CHORD_BASE && prev_tone != -1) {
-            index = get_chord_index(curr_tone, prev_tone);
-            if (index != -1) {
-                minor_chord[index]++;
-            }
-        }
-    }
 }
 
 /**
@@ -438,23 +260,20 @@ int main(int argc, char** argv) {
         exit(0);
     }
     std::cout << "Start matrix generation" << std::endl;
+    bool success;
+    char* major_path = argv[1];
+    char* minor_path = argv[2];
 
     using std::chrono::high_resolution_clock;
     using std::chrono::duration_cast;
     using std::chrono::duration;
     using std::chrono::milliseconds;
 
-    bool success;
-    char* major_path = argv[1];
-    char* minor_path = argv[2];
-
-    // allocate matrices
-    auto t_start = high_resolution_clock::now();
+    // allocate host memory
     matrix_alloc();
-    buffer_alloc();
-    auto t_end = high_resolution_clock::now();
-    auto t_spent = duration_cast<milliseconds>(t_end - t_start);
-    std::cout << "Time spent for host memory allocation: " << t_spent.count() << "ms\n";
+
+    // allocate device memory
+    cuda_malloc();
 
     std::cout << "Start parsing major & minor txt files" << std::endl;
     success = file_parsing(major_path, minor_path);
@@ -464,25 +283,26 @@ int main(int argc, char** argv) {
         std::cout << "File parsing failed" << std::endl;
     }
 
-    t_start = high_resolution_clock::now();
-    matrix_generation();
-    t_end = high_resolution_clock::now();
-    t_spent = duration_cast<milliseconds>(t_end - t_start);
-    std::cout << "Time spent for matrix generation: " << t_spent.count() << "ms\n";
+    // markov training through GPU
+    buffer_copy(majorHighBuff, majorLowBuff, major_high_len, major_low_len,
+                minorHighBuff, minorLowBuff, minor_high_len, minor_low_len);
 
-    // output matrices to txt files 
-    // success = matrix_output();
-    // if (success) {
-    //     std::cout << "Matrix output successed" << std::endl;
-    // } else {
-    //     std::cout << "Matrix output failed" << std::endl;
-    // }
+    // markov training through GPU
+    cuda_note_count(major_high_len, major_low_len, minor_high_len, minor_low_len);
 
-    t_start = high_resolution_clock::now();
-    free_buffer();
+    // copy memory back to host
+    cuda_to_host();
+    
+    // output matrices to txt files
+    success = matrix_output();
+    if (success) {
+        std::cout << "Matrix output successed" << std::endl;
+    } else {
+        std::cout << "Matrix output failed" << std::endl;
+    }
+
+    // free memory allocated
+    cuda_free();
     free_matrix();
-    t_end = high_resolution_clock::now();
-    t_spent = duration_cast<milliseconds>(t_end - t_start);
-    std::cout << "Time spent for free host and device memory: " << t_spent.count() << "ms\n";
     return 0;
 }

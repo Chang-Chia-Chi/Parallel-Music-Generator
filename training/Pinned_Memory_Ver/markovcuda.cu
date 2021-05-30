@@ -35,50 +35,55 @@ int* device_minorLowNotes;
 int* device_majorChords;
 int* device_minorChords;
 
-using std::chrono::high_resolution_clock;
-using std::chrono::duration_cast;
-using std::chrono::duration;
-using std::chrono::milliseconds;
-
 void matrix_alloc() {
-    auto t_start = high_resolution_clock::now();
+    // Allocation of major & minor notes transfer matrices //
+    float elapsedTime;
+    cudaEventCreate(&start);
+    cudaEventCreate(&stop);
+    cudaEventRecord(start, 0);
+    cudaHostAlloc(&major_high, sizeof(int) * (NUM_NOTE * NUM_NOTE), cudaHostAllocMapped);
+    cudaHostAlloc(&major_low, sizeof(int) * (NUM_NOTE * NUM_NOTE), cudaHostAllocMapped);
+    cudaHostAlloc(&minor_high, sizeof(int) * (NUM_NOTE * NUM_NOTE), cudaHostAllocMapped);
+    cudaHostAlloc(&minor_low, sizeof(int) * (NUM_NOTE * NUM_NOTE), cudaHostAllocMapped);
 
-    major_high = (int*)malloc(sizeof(int) * (NUM_NOTE * NUM_NOTE));
-    major_low = (int*)malloc(sizeof(int) * (NUM_NOTE * NUM_NOTE));
-    minor_high = (int*)malloc(sizeof(int) * (NUM_NOTE * NUM_NOTE));
-    minor_low = (int*)malloc(sizeof(int) * (NUM_NOTE * NUM_NOTE));
+    // Allocation of major & minor chords transfer matrices //
+    cudaHostAlloc(&major_chord, sizeof(int) * (NUM_CHORD * NUM_CHORD), cudaHostAllocMapped);
+    cudaHostAlloc(&minor_chord, sizeof(int) * (NUM_CHORD * NUM_CHORD), cudaHostAllocMapped);
 
-    major_chord = (int*)malloc(sizeof(int) * (NUM_CHORD * NUM_CHORD));
-    minor_chord = (int*)malloc(sizeof(int) * (NUM_CHORD * NUM_CHORD));
+    // Allocation of buffer //
+    cudaHostAlloc(&majorHighBuff, sizeof(note_info) * BUFFER_LEN, cudaHostAllocMapped);
+    cudaHostAlloc(&majorLowBuff, sizeof(note_info) * BUFFER_LEN, cudaHostAllocMapped);
+    cudaHostAlloc(&minorHighBuff, sizeof(note_info) * BUFFER_LEN, cudaHostAllocMapped);
+    cudaHostAlloc(&minorLowBuff, sizeof(note_info) * BUFFER_LEN, cudaHostAllocMapped);
 
-    majorHighBuff = (note_info*)malloc(sizeof(note_info) * BUFFER_LEN);
-    majorLowBuff = (note_info*)malloc(sizeof(note_info) * BUFFER_LEN);
-    minorHighBuff = (note_info*)malloc(sizeof(note_info) * BUFFER_LEN);
-    minorLowBuff = (note_info*)malloc(sizeof(note_info) * BUFFER_LEN);
-
-    auto t_end = high_resolution_clock::now();
-    auto t_spent = duration_cast<milliseconds>(t_end - t_start);
-    std::cout << "Time spent for host memory allocation: " << t_spent.count() << " ms\n";
+    cudaEventRecord(stop, 0);
+    cudaEventSynchronize(stop);
+    cudaEventElapsedTime(&elapsedTime, start, stop);
+    std::cout << "Time spent for host memory allocation: " << elapsedTime << " ms\n";
 }
 
 void free_matrix() {
-    auto t_start = high_resolution_clock::now();
+    float elapsedTime;
+    cudaEventCreate(&start);
+    cudaEventCreate(&stop);
+    cudaEventRecord(start, 0);
 
-    free(major_high);
-    free(major_low);
-    free(minor_high);
-    free(minor_low);
-    free(major_chord);
-    free(minor_chord);
+    cudaFreeHost(major_high);
+    cudaFreeHost(major_low);
+    cudaFreeHost(minor_high);
+    cudaFreeHost(minor_low);
+    cudaFreeHost(major_chord);
+    cudaFreeHost(minor_chord);
 
-    free(majorHighBuff);
-    free(majorLowBuff);
-    free(minorHighBuff);
-    free(minorLowBuff);
+    cudaFreeHost(majorHighBuff);
+    cudaFreeHost(majorLowBuff);
+    cudaFreeHost(minorHighBuff);
+    cudaFreeHost(minorLowBuff);
 
-    auto t_end = high_resolution_clock::now();
-    auto t_spent = duration_cast<milliseconds>(t_end - t_start);
-    std::cout << "Time spent for host memory free: " << t_spent.count() << " ms\n";
+    cudaEventRecord(stop, 0);
+    cudaEventSynchronize(stop);
+    cudaEventElapsedTime(&elapsedTime, start, stop);
+    std::cout << "Time spent for host memory free: " << elapsedTime << " ms\n";
 }
 
 
@@ -133,7 +138,7 @@ void cuda_free() {
     cudaEventRecord(stop, 0);
     cudaEventSynchronize(stop);
     cudaEventElapsedTime(&elapsedTime, start, stop);
-    std::cout << "Time spent for device memory allocation: " << elapsedTime << " ms\n";
+    std::cout << "Time spent for device memory free: " << elapsedTime << " ms\n";
 }
 
 void cuda_to_host() {
