@@ -110,6 +110,8 @@ void cuda_malloc() {
     cudaEventSynchronize(stop);
     cudaEventElapsedTime(&elapsedTime, start, stop);
     std::cout << "Time spent for device memory allocation: " << elapsedTime << " ms\n";
+    cudaEventDestroy(start);
+    cudaEventDestroy(stop);
 }
 
 void cuda_free() {
@@ -134,6 +136,8 @@ void cuda_free() {
     cudaEventSynchronize(stop);
     cudaEventElapsedTime(&elapsedTime, start, stop);
     std::cout << "Time spent for device memory allocation: " << elapsedTime << " ms\n";
+    cudaEventDestroy(start);
+    cudaEventDestroy(stop);
 }
 
 void cuda_to_host() {
@@ -153,6 +157,8 @@ void cuda_to_host() {
     cudaEventSynchronize(stop);
     cudaEventElapsedTime(&elapsedTime, start, stop);
     std::cout << "Time spent for copy memory back: " << elapsedTime << " ms\n";
+    cudaEventDestroy(start);
+    cudaEventDestroy(stop);
 }
 
 __device__ inline int cuda_getNoteIndex(int curr_tone, int curr_dur, int prev_tone_1, int prev_dur_1, int tune) {
@@ -254,7 +260,9 @@ void buffer_copy(note_info* major_high_buff, note_info* major_low_buff, int majo
         cudaEventRecord(stop, 0);
         cudaEventSynchronize(stop);
         cudaEventElapsedTime(&elapsedTime, start, stop);
-        std::cout << "Time spent for buffer copy: " << elapsedTime << " ms\n";  
+        std::cout << "Time spent for buffer copy: " << elapsedTime << " ms\n"; 
+        cudaEventDestroy(start);
+        cudaEventDestroy(stop);
 }
 
 void cuda_note_count(int minor_high_len, int minor_low_len, int major_high_len, int major_low_len) {
@@ -277,6 +285,7 @@ void cuda_note_count(int minor_high_len, int minor_low_len, int major_high_len, 
     cudaEventRecord(stop, 0);
     cudaEventSynchronize(stop);
     cudaEventElapsedTime(&elapsedTime, start, stop);
-
     std::cout << "Time spent for matrix generation: " << elapsedTime << " ms\n";  
+    cudaEventDestroy(start);
+    cudaEventDestroy(stop);
 }
