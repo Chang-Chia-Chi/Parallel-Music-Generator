@@ -73,8 +73,8 @@ void rename_new() {
     std::rename("MajorLowMatrixTemp.txt", "MajorLowMatrix.txt");
     std::rename("MinorHighMatrixTemp.txt", "MinorHighMatrix.txt");
     std::rename("MinorLowMatrixTemp.txt", "MinorLowMatrix.txt");
-    std::rename("ChordHighMatrixTemp.txt", "ChordHighMatrix.txt");
-    std::rename("ChordLowMatrixTemp.txt", "ChordLowMatrix.txt");
+    std::rename("MajorChordMatrixTemp.txt", "MajorChordMatrix.txt");
+    std::rename("MinorChordMatrixTemp.txt", "MinorChordMatrix.txt");
 }
 
 /** 
@@ -471,12 +471,12 @@ int main(int argc, char** argv) {
     std::cout << "Time spent for matrix generation: " << t_spent.count() << "ms\n";
 
     // output matrices to txt files 
-    // success = matrix_output();
-    // if (success) {
-    //     std::cout << "Matrix output successed" << std::endl;
-    // } else {
-    //     std::cout << "Matrix output failed" << std::endl;
-    // }
+    success = matrix_output();
+    if (success) {
+        std::cout << "Matrix output successed" << std::endl;
+    } else {
+        std::cout << "Matrix output failed" << std::endl;
+    }
 
     t_start = high_resolution_clock::now();
     free_buffer();

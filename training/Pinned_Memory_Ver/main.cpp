@@ -25,8 +25,8 @@ void rename_new() {
     std::rename("MajorLowMatrixTemp.txt", "MajorLowMatrix.txt");
     std::rename("MinorHighMatrixTemp.txt", "MinorHighMatrix.txt");
     std::rename("MinorLowMatrixTemp.txt", "MinorLowMatrix.txt");
-    std::rename("ChordHighMatrixTemp.txt", "ChordHighMatrix.txt");
-    std::rename("ChordLowMatrixTemp.txt", "ChordLowMatrix.txt");
+    std::rename("MajorChordMatrixTemp.txt", "MajorChordMatrix.txt");
+    std::rename("MinorChordMatrixTemp.txt", "MinorChordMatrix.txt");
 }
 
 bool file_parsing(char* major_path, char* minor_path) {
@@ -289,7 +289,8 @@ int main(int argc, char** argv) {
 
     // markov training through GPU
     cuda_note_count(major_high_len, major_low_len, minor_high_len, minor_low_len);
-
+    cudaDeviceSynchronize();
+    
     // copy memory back to host
     cuda_to_host();
     

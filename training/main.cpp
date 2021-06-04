@@ -25,8 +25,8 @@ void rename_new() {
     std::rename("MajorLowMatrixTemp.txt", "MajorLowMatrix.txt");
     std::rename("MinorHighMatrixTemp.txt", "MinorHighMatrix.txt");
     std::rename("MinorLowMatrixTemp.txt", "MinorLowMatrix.txt");
-    std::rename("ChordHighMatrixTemp.txt", "ChordHighMatrix.txt");
-    std::rename("ChordLowMatrixTemp.txt", "ChordLowMatrix.txt");
+    std::rename("MajorChordMatrixTemp.txt", "MajorChordMatrix.txt");
+    std::rename("MinorChordMatrixTemp.txt", "MinorChordMatrix.txt");
 }
 
 bool file_parsing(char* major_path, char* minor_path) {
@@ -256,7 +256,7 @@ bool matrix_output() {
 
 int main(int argc, char** argv) {
     if (argc != 3) {
-        std::cerr << "Usage ./markovSeq.out <major note path> <minor note path>" << std::endl;
+        std::cerr << "Usage ./main <major note path> <minor note path>" << std::endl;
         exit(0);
     }
     std::cout << "Start matrix generation" << std::endl;
@@ -267,7 +267,7 @@ int main(int argc, char** argv) {
     using std::chrono::high_resolution_clock;
     using std::chrono::duration_cast;
     using std::chrono::duration;
-    using std::chrono::milliseconds;
+    using std::chrono::microseconds;
 
     // allocate host memory
     matrix_alloc();

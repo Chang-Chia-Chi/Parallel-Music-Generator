@@ -81,7 +81,6 @@ void free_matrix() {
     std::cout << "Time spent for host memory free: " << t_spent.count() << " ms\n";
 }
 
-
 void cuda_malloc() {
     float elapsedTime;
     cudaEventCreate(&start);
@@ -161,21 +160,21 @@ void cuda_to_host() {
     cudaEventDestroy(stop);
 }
 
-__device__ inline int cuda_getNoteIndex(int curr_tone, int curr_dur, int prev_tone_1, int prev_dur_1, int tune) {
+__device__ inline int cuda_getNoteIndex(int curr_tone, int curr_dur, int prev_tone, int prev_dur, int tune) {
     int col = curr_tone * NUM_DURATION + curr_dur ;
 
     // If previous tone is chord, get top note and find closest
-    if (prev_tone_1 >= CHORD_BASE) {
-        prev_tone_1 = (prev_tone_1 - CHORD_BASE) / 144; // Get top note
+    if (prev_tone >= CHORD_BASE) {
+        prev_tone = (prev_tone - CHORD_BASE) / 144; // Get top note
         if (curr_tone == NUM_TONE - 1) { // if curr_tone is Rest
-            prev_tone_1 = prev_tone_1 + 12 * (2 * tune);
+            prev_tone = prev_tone + 12 * (2 * tune);
         } else {
-            prev_tone_1 = curr_tone - (curr_tone % 12) + prev_tone_1;
+            prev_tone = curr_tone - (curr_tone % 12) + prev_tone;
         }
     }
 
     int row;
-    row = prev_tone_1 * NUM_DURATION + prev_dur_1;
+    row = prev_tone * NUM_DURATION + prev_dur;
 
     return row * NUM_NOTE + col;
 }
@@ -207,15 +206,13 @@ __global__ void note_kernel(note_info* device_Buff, int* device_Mat, int use_len
     int curr_tone, curr_dur, prev_tone, prev_dur, tune;
     for (int i = start; i < end; i++) {
         curr_tone = device_Buff[i].tone;
-        curr_tone = device_Buff[i].dur;
+        curr_dur = device_Buff[i].dur;
         prev_tone = device_Buff[i - 1].tone;
         prev_dur = device_Buff[i - 1].dur;
         tune = device_Buff[i].tune;
         if (curr_tone < CHORD_BASE && prev_tone != -1) {
             index = cuda_getNoteIndex(curr_tone, curr_dur, prev_tone, prev_dur, tune);
-            if (index != -1) {
-                atomicAdd(&device_Mat[index], 1);
-            }
+            atomicAdd(&device_Mat[index], 1);
         }
     }
 }
@@ -285,7 +282,7 @@ void cuda_note_count(int minor_high_len, int minor_low_len, int major_high_len, 
     cudaEventRecord(stop, 0);
     cudaEventSynchronize(stop);
     cudaEventElapsedTime(&elapsedTime, start, stop);
-    std::cout << "Time spent for matrix generation: " << elapsedTime << " ms\n";  
+    std::cout << "Time spent for matrix generation: " << elapsedTime << " ms\n";
     cudaEventDestroy(start);
     cudaEventDestroy(stop);
 }
