@@ -64,8 +64,8 @@ void remove_old() {
     remove("MajorLowMatrix.txt");
     remove("MinorHighMatrix.txt");
     remove("MinorLowMatrix.txt");
-    remove("ChordHighMatrix.txt");
-    remove("ChordLowMatrix.txt");
+    remove("MajorChordMatrix.txt");
+    remove("MinorChordMatrix.txt");
 }
 
 void rename_new() {
@@ -434,7 +434,7 @@ bool matrix_output() {
 
 int main(int argc, char** argv) {
     if (argc != 3) {
-        std::cerr << "Usage ./markovSeq.out <major note path> <minor note path>" << std::endl;
+        std::cerr << "Usage ./markovSeq <major note path> <minor note path>" << std::endl;
         exit(0);
     }
     std::cout << "Start matrix generation" << std::endl;

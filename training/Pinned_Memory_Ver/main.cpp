@@ -16,8 +16,8 @@ void remove_old() {
     remove("MajorLowMatrix.txt");
     remove("MinorHighMatrix.txt");
     remove("MinorLowMatrix.txt");
-    remove("ChordHighMatrix.txt");
-    remove("ChordLowMatrix.txt");
+    remove("MajorChordMatrix.txt");
+    remove("MinorChordMatrix.txt");
 }
 
 void rename_new() {
