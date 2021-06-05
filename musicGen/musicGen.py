@@ -207,20 +207,18 @@ def get_music(tune):
     t_s = time.time()
     musics = music_genSeq(matrices, tune)
     print("Complete sequential music generation")
-    print("Time of sequential music generation: {} ms".format(time.time() - t_s))
+    print("Time of sequential music generation: {:.2f} s".format(time.time() - t_s))
 
     print("Start parallel music generation")
     t_s = time.time()
     musics = music_genMP(matrices, tune)
     print("Complete parallel music generation")
-    print("Time of parallel music generation: {} ms".format(time.time()- t_s))
+    print("Time of parallel music generation: {:.2f} s".format(time.time()- t_s))
     return json.dumps({'id':music_id, 'music':musics})
 
 # interface for websocket
 def main():
     # TODO
     pass
-
-
 
 get_music(tune=1)
