@@ -1,4 +1,3 @@
-from asyncio.events import get_event_loop
 import os
 import glob
 import json
@@ -120,7 +119,7 @@ def matrices2probSeq():
 
     print("Complete Converting Matrices to Prob Matrices")
 
-def get_next_note(prev_tone, prev_dur, m_type, matrices):
+def get_next_note(prev_tone, prev_dur, m_type, matrix):
     if m_type in [1, 2, 3, 4]: # melodic line
         if prev_tone == -1: # by uniform distribution
             curr_tone = np.random.choice(12, p = [0.5, 0, 0.1, 0.1, 0.1, 0.2, 0, 0, 0, 0, 0, 0])
@@ -128,7 +127,7 @@ def get_next_note(prev_tone, prev_dur, m_type, matrices):
             curr_dur = np.random.randint(0, 16)
         else: # by markov matrix
             row = prev_tone * NUM_DURATION + prev_dur
-            curr_note = np.random.choice(matrices[m_type].shape[1], p=matrices[m_type][row])
+            curr_note = np.random.choice(matrix.shape[1], p=matrix[row])
             curr_tone = int(curr_note/NUM_DURATION)
             curr_dur = curr_note % NUM_DURATION
     else: # chord
@@ -141,27 +140,26 @@ def get_next_note(prev_tone, prev_dur, m_type, matrices):
             curr_tone = np.random.choice([7 + mid * 144, mid + 7*12, mid * 12 + 7 * 144]) + CHORD_BASE
         else:
             row = prev_tone - CHORD_BASE
-            curr_tone = np.random.choice(matrices[m_type].shape[1], p=matrices[m_type][row])
+            curr_tone = np.random.choice(matrix.shape[1], p=matrix[row])
             curr_tone += CHORD_BASE
         
         curr_dur = np.random.randint(4, 16)
 
     return (int(curr_tone), int(curr_dur))
 
-def music_gentype(matrices, m_type):
-    matrix = matrices[m_type]
+def music_gentype(matrix, m_type):
+    np.random.seed() # to prevent sub-process having same seed as main process
     music_gen = []
     prev_tone = -1
     prev_dur = -1
     beats_gen = 0
     while beats_gen < NUM_BEATS:
-        curr_tone, curr_dur = get_next_note(prev_tone, prev_dur, m_type, matrices)
+        curr_tone, curr_dur = get_next_note(prev_tone, prev_dur, m_type, matrix)
         beats_gen += (curr_dur + 1)
         prev_tone = curr_tone
         prev_dur = curr_dur
         if beats_gen > NUM_BEATS: # If beats generated exceed limited length, chop off
             curr_dur -= beats_gen - NUM_BEATS
-
         music_gen.append([curr_tone, curr_dur])
     return music_gen
 
@@ -175,12 +173,14 @@ def music_genMP(matrices, tune):
         music_types = major_types
     elif tune == 2:
         music_types = minor_types
-    
+
     pool = mp.Pool(processes=10)
-    args = [(matrices, m_type) for m_type in music_types]
+    args = [(matrices[m_type], m_type) for m_type in music_types]
     musics = pool.starmap(music_gentype, args)
     pool.close()
+
     return musics
+
 
 def music_genSeq(matrices, tune):
     if tune == 1:
@@ -189,8 +189,8 @@ def music_genSeq(matrices, tune):
         music_types = minor_types
     
     musics = []
-    wrap_fun = gen_wrapper(matrices, music_gentype)
     for type in music_types:
+        wrap_fun = gen_wrapper(matrices[type], music_gentype)
         musics.append(wrap_fun(type))
     
     return musics
@@ -203,11 +203,11 @@ def get_music(tune):
     matrices2probMP()
 
     matrices = [major_high, major_low, minor_high, minor_low, major_chord, minor_chord]
-    print("Start sequential music generation")
-    t_s = time.time()
-    musics = music_genSeq(matrices, tune)
-    print("Complete sequential music generation")
-    print("Time of sequential music generation: {:.2f} s".format(time.time() - t_s))
+    # print("Start sequential music generation")
+    # t_s = time.time()
+    # musics = music_genSeq(matrices, tune)
+    # print("Complete sequential music generation")
+    # print("Time of sequential music generation: {:.2f} s".format(time.time() - t_s))
 
     print("Start parallel music generation")
     t_s = time.time()
