@@ -65,12 +65,38 @@ def get_TXTpaths(current_folder:str):
 def process(func, *args):
     asyncio.run(func(*args))
 
+def read_seq(txt_files:list):
+    major_txt = ""
+    minor_txt = ""
+    for txt_file in txt_files:
+        txt_str = ""
+        try:
+            with open(txt_file, "r") as txt_read:
+                mood = txt_read.readline()
+                txt_str = txt_read.read()
+            if mood == "major\n":
+                major_txt += txt_str
+            elif mood == "minor\n":
+                minor_txt += txt_str
+            else:
+                print("Read Skipped ! " + txt_file)
+                continue
+        except:
+            print("Read Failed ! " + txt_file)
+            continue
+    
+    with open("Major_Notes.txt", "w") as txt_write:
+        txt_write.write(major_txt)
+    
+    with open("Minor_Notes.txt", "w") as txt_write:
+        txt_write.write(minor_txt)    
+
 def main():
-    start_t = time.time()
-    print("Start Combination !")
     current_folder = os.getcwd()
     txt_files = get_TXTpaths(current_folder)
 
+    print("Start Parallel Combination !")
+    start_t = time.time()
     major_queue = mp.Queue()
     minor_queue = mp.Queue()
 
@@ -82,10 +108,16 @@ def main():
 
     for p in processes:
         p.start()
+        
     for p in processes:
         p.join()
 
-    print("End Combination in: {:.2f} sec!".format(time.time()-start_t))
+    print("End Parallel Combination in: {:.2f} sec!".format(time.time()-start_t))
+
+    print("Start Serial Combination !")
+    start_t = time.time()
+    read_seq(txt_files)
+    print("End Serial Combination in: {:.2f} sec!".format(time.time()-start_t))
 
 if __name__ == "__main__":
     main()
