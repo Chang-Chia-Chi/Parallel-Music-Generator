@@ -2,7 +2,7 @@ import os
 import glob
 import pickle
 import numpy as np
-from constant import *
+from const_gen import *
 
 def txt2pickle(txt_folder, pickle_folder):
     os.chdir(txt_folder)
@@ -37,7 +37,7 @@ def txt2npy(txt_folder, pickle_folder):
                     matrix[row][col] = value
                     col += 1
                 row += 1
-            npy_name = txt_name + ".pickle"
+            npy_name = txt_name
             npy_path = os.path.join(pickle_folder, npy_name)
             np.save(npy_path, matrix)
 
