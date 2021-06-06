@@ -197,7 +197,7 @@ def music_genSeq(matrices, tune):
 
 def get_music(tune):
     n_folder_name = "matrix_npy"
-    current_path = os.getcwd()
+    current_path = os.path.dirname(__file__)
     npy_folder = os.path.join(current_path, n_folder_name)
     load_matrices(npy_folder)
     matrices2probMP()
@@ -217,8 +217,7 @@ def get_music(tune):
     return json.dumps({'id':music_id, 'music':musics})
 
 # interface for websocket
-def main():
-    # TODO
-    pass
+def main(tune):
+    return get_music(tune)
 
-get_music(tune=1)
+# get_music(tune=1)
