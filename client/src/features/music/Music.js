@@ -1,6 +1,11 @@
 import React, { useState, useEffect } from "react";
 // import { useSelector, useDispatch } from "react-redux";
-import { IconButton, Typography } from "@material-ui/core";
+import {
+  IconButton,
+  Typography,
+  Backdrop,
+  CircularProgress,
+} from "@material-ui/core";
 import { Mood, MoodBad } from "@material-ui/icons";
 import { makeStyles } from "@material-ui/core/styles";
 import * as Config from "../../constants/Config";
@@ -19,6 +24,80 @@ const useStyles = makeStyles({
     flexDirection: "row",
   },
 });
+
+const synth = new Tone.Synth().toDestination();
+
+const piano = new Tone.Sampler(
+  Config.PIANO_SETTINGS_FILES,
+  Config.PIANO_SETTINGS_URL
+).toDestination();
+
+const violin = new Tone.Sampler(
+  Config.VIOLIN_SETTINGS_FILES,
+  Config.VIOLIN_SETTINGS_URL
+).toDestination();
+
+const xylo = new Tone.Sampler(
+  Config.XYLO_SETTINGS_FILES,
+  Config.XYLO_SETTINGS_URL
+).toDestination();
+
+const trumpet = new Tone.Sampler(
+  Config.TRUMPET_SETTINGS_FILES,
+  Config.TRUMPET_SETTINGS_URL
+).toDestination();
+
+const tuba = new Tone.Sampler(
+  Config.TUBA_SETTINGS_FILES,
+  Config.TUBA_SETTINGS_URL
+).toDestination();
+
+const SYNTHS = [
+  [piano, piano, piano],
+  [piano, synth, synth],
+  [piano, synth, synth],
+  [violin, synth, synth],
+  [xylo, synth, synth],
+  [xylo, synth, synth],
+  [trumpet, synth, synth],
+  [tuba, tuba, tuba],
+  [synth, synth, synth],
+  [
+    new Tone.Synth({
+      oscillator: {
+        type: "sine",
+        volume: Config.VOLUME,
+      },
+      envelope: {
+        attack: Config.ADSR.A,
+        decay: Config.ADSR.D,
+        sustain: Config.ADSR.S,
+        release: Config.ADSR.R,
+      },
+    }).toDestination(),
+    synth,
+    synth,
+  ],
+];
+
+var lpf = new Tone.Filter({
+  type: "lowpass",
+  frequency: Config.LOWPASS_FREQ,
+}).toDestination();
+
+var hpf = new Tone.Filter({
+  type: "highpass",
+  frequency: Config.HIGHPASS_FREQ,
+}).connect(lpf);
+
+// connect to speakers
+SYNTHS.forEach((s) => {
+  s[0].connect(hpf);
+  s[1].connect(hpf);
+  s[2].connect(hpf);
+});
+
+Tone.Transport.bpm.value = 120;
 
 function parseChord(chord) {
   // Convert to base 12
@@ -57,67 +136,71 @@ function playMusic(msg) {
 
   if (Array.isArray(notes)) {
     // notes = notes.slice(0, notes.length > 0 ? 1 : 0);
-    // console.log("notes.length:", notes.length);
+    // console.log("play music");
 
     // reset transport
+    Tone.context.resume();
     Tone.Transport.stop();
     Tone.Transport.cancel();
     Tone.Transport.seconds = 0;
-    const synth = new Tone.Synth().toDestination();
-    let currTime = Tone.now();
-
-    // parse through the notes we are getting
-    for (const mainNote of notes) {
-      for (const subNote of mainNote) {
-        const note =
-          subNote[0] >= Config.NOTE_MAPPINGS.length
-            ? subNote[0] % Config.NOTE_MAPPINGS.length
-            : subNote[0];
-        const duration =
-          subNote[1] >= Config.NOTE_DURATIONS.length
-            ? subNote[1] % Config.NOTE_DURATIONS.length
-            : subNote[1];
-        if (note === Config.REST_NOTE) {
-          // rest
-          Tone.Transport.scheduleOnce((time) => {
-            synth.triggerAttackRelease(null, null, time);
-          }, currTime);
-        } else if (note < Config.REST_NOTE) {
-          // note
-          Tone.Transport.scheduleOnce((time) => {
-            synth.triggerAttackRelease(
-              Config.NOTE_MAPPINGS[note],
-              Config.NOTE_DURATIONS[duration],
-              time
-            );
-          }, currTime);
-        } else {
-          // chord
-          let tempNotes = parseChord(note);
-          for (const tempNote of tempNotes) {
+    Tone.loaded().then(() => {
+      console.log("Tone loaded!");
+      let currTime = 0;
+      // parse through the notes we are getting
+      for (const [mi, mainNote] of notes.entries()) {
+        for (const subNote of mainNote) {
+          const note = subNote[0];
+          const duration =
+            subNote[1] >= Config.NOTE_DURATIONS.length
+              ? subNote[1] % Config.NOTE_DURATIONS.length
+              : subNote[1];
+          if (note === Config.REST_NOTE) {
+            // rest
             Tone.Transport.scheduleOnce((time) => {
-              synth.triggerAttackRelease(
-                tempNote,
+              console.log("scheduleOnce rest");
+              SYNTHS[mi][0].triggerAttackRelease(time);
+            }, currTime);
+          } else if (note < Config.REST_NOTE) {
+            // note
+            Tone.Transport.scheduleOnce((time) => {
+              console.log("scheduleOnce < rest");
+              SYNTHS[mi][0].triggerAttackRelease(
+                Config.NOTE_MAPPINGS[note],
                 Config.NOTE_DURATIONS[duration],
                 time
               );
             }, currTime);
+          } else {
+            // chord
+            let tempNotes = parseChord(note);
+            for (const [ti, tempNote] of tempNotes.entries()) {
+              Tone.Transport.scheduleOnce((time) => {
+                console.log("scheduleOnce chord");
+                SYNTHS[mi][ti].triggerAttackRelease(
+                  tempNote,
+                  Config.NOTE_DURATIONS[duration],
+                  time
+                );
+              }, currTime);
+            }
           }
-        }
 
-        currTime += Tone.Time(Config.NOTE_DURATIONS[duration]).toSeconds();
+          currTime += Tone.Time(Config.NOTE_DURATIONS[duration]).toSeconds();
+        }
       }
-    }
-    // console.log("Start playing at", Tone.Transport.bpm.value);
-    Tone.Transport.start();
+
+      Tone.Transport.start();
+    });
   }
 }
 
 export function Music() {
   const classes = useStyles();
-
-  // const dispatch = useDispatch();
   const [ws, setWs] = useState(null);
+
+  const [btnDisabled, setBtnDisabled] = useState(true);
+  const [openBackDrop, setBackDropOpen] = useState(false);
+
   if (!ws) {
     setWs(new WebSocket(Config.WS_URL));
   }
@@ -128,6 +211,7 @@ export function Music() {
       ws.onopen = () => {
         // on connecting, do nothing but log it to the console
         console.log("connected");
+        setBtnDisabled(false);
       };
 
       ws.onmessage = (evt) => {
@@ -137,12 +221,15 @@ export function Music() {
             ? evt.data
             : JSON.parse(evt.data);
         console.log("onmessage", message);
+        setBackDropOpen(false);
+        setBtnDisabled(false);
 
         playMusic(message);
       };
 
       ws.onclose = () => {
         console.log("disconnected");
+        setBtnDisabled(true);
         // automatically try to reconnect on connection loss
         setWs(new WebSocket(Config.WS_URL));
       };
@@ -150,9 +237,11 @@ export function Music() {
   }, [ws]);
 
   const sendMessage = (payload) => {
-    //以 emit 送訊息，並以 getMessage 為名稱送給 server 捕捉
     console.log("sendMessage", payload);
     if (ws && ws.readyState !== WebSocket.CLOSED) {
+      setBackDropOpen(true);
+      setBtnDisabled(true);
+
       ws.send(
         JSON.stringify({
           action: "relay",
@@ -168,10 +257,14 @@ export function Music() {
         Click mood to play music !
       </Typography>
       <div className={classes.container}>
+        <Backdrop className={classes.backdrop} open={openBackDrop}>
+          <CircularProgress color="inherit" />
+        </Backdrop>
         <IconButton
           color="primary"
           aria-label="happy"
           component="span"
+          disabled={btnDisabled}
           onClick={sendMessage.bind(this, { tune: 1 })}
         >
           <Mood className={classes.icon} />
@@ -180,6 +273,7 @@ export function Music() {
           color="secondary"
           aria-label="sad"
           component="span"
+          disabled={btnDisabled}
           onClick={sendMessage.bind(this, { tune: 2 })}
         >
           <MoodBad className={classes.icon} />
