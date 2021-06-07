@@ -61,7 +61,6 @@ def matrix2prob(matrix):
             new_matrix[i] = 1 / matrix.shape[1]
         else:
             new_matrix[i, :] = matrix[i, :] / row_sum
-        
     return new_matrix
     
 def matrices2probMP():
@@ -121,10 +120,10 @@ def matrices2probSeq():
 
 def get_next_note(prev_tone, prev_dur, m_type, matrix):
     if m_type in [1, 2, 3, 4]: # melodic line
-        if prev_tone == -1: # by uniform distribution
+        if prev_tone == -1:
             curr_tone = np.random.choice(12, p = [0.5, 0, 0.1, 0.1, 0.1, 0.2, 0, 0, 0, 0, 0, 0])
             curr_tone = np.random.randint(OCTAVE_SAPN) * 12 + curr_tone
-            curr_dur = np.random.randint(0, 16)
+            curr_dur = np.random.randint(0, NUM_DURATION)
         else: # by markov matrix
             row = prev_tone * NUM_DURATION + prev_dur
             curr_note = np.random.choice(matrix.shape[1], p=matrix[row])
@@ -143,7 +142,7 @@ def get_next_note(prev_tone, prev_dur, m_type, matrix):
             curr_tone = np.random.choice(matrix.shape[1], p=matrix[row])
             curr_tone += CHORD_BASE
         
-        curr_dur = np.random.randint(4, 16)
+        curr_dur = np.random.randint(4, NUM_DURATION)
 
     return (int(curr_tone), int(curr_dur))
 
@@ -165,32 +164,31 @@ def music_gentype(matrix, m_type):
 
 def gen_wrapper(matrices, func):
     def wrapper(m_type):
-        return func(matrices, m_type)
+        return func(matrices[m_type - 1], m_type)
     return wrapper
 
 def music_genMP(matrices, tune):
     if tune == 1:
-        music_types = major_types
-    elif tune == 2:
         music_types = minor_types
+    elif tune == 2:
+        music_types = major_types
 
     pool = mp.Pool(processes=10)
-    args = [(matrices[m_type], m_type) for m_type in music_types]
+    args = [(matrices[m_type - 1], m_type) for m_type in music_types]
     musics = pool.starmap(music_gentype, args)
     pool.close()
 
     return musics
 
-
 def music_genSeq(matrices, tune):
     if tune == 1:
-        music_types = major_types
-    elif tune == 2:
         music_types = minor_types
+    elif tune == 2:
+        music_types = major_types
     
     musics = []
     for type in music_types:
-        wrap_fun = gen_wrapper(matrices[type], music_gentype)
+        wrap_fun = gen_wrapper(matrices, music_gentype)
         musics.append(wrap_fun(type))
     
     return musics
@@ -217,8 +215,7 @@ def get_music(tune):
     return json.dumps({'id':music_id, 'music':musics})
 
 # interface for websocket
-def main():
-    # TODO
-    pass
+def main(tune):
+    return get_music(tune)
 
-get_music(tune=1)
+main(tune=1)
