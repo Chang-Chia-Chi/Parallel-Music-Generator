@@ -31,26 +31,31 @@ const piano = new Tone.Sampler(
   Config.PIANO_SETTINGS_FILES,
   Config.PIANO_SETTINGS_URL
 ).toDestination();
+piano.volume.value = -18;
 
 const violin = new Tone.Sampler(
   Config.VIOLIN_SETTINGS_FILES,
   Config.VIOLIN_SETTINGS_URL
 ).toDestination();
+violin.volume.value = 12;
 
 const xylo = new Tone.Sampler(
   Config.XYLO_SETTINGS_FILES,
   Config.XYLO_SETTINGS_URL
 ).toDestination();
+xylo.volume.value = 12;
 
 const trumpet = new Tone.Sampler(
   Config.TRUMPET_SETTINGS_FILES,
   Config.TRUMPET_SETTINGS_URL
 ).toDestination();
+trumpet.volume.value = 12;
 
 const tuba = new Tone.Sampler(
   Config.TUBA_SETTINGS_FILES,
   Config.TUBA_SETTINGS_URL
 ).toDestination();
+tuba.volume.value = 12;
 
 const SYNTHS = [
   [piano, piano, piano],
@@ -97,8 +102,6 @@ SYNTHS.forEach((s) => {
   s[2].connect(hpf);
 });
 
-Tone.Transport.bpm.value = 120;
-
 function parseChord(chord) {
   // Convert to base 12
   let temp = chord - Config.CHORD_OFFSET;
@@ -126,7 +129,7 @@ function parseChord(chord) {
   return notes;
 }
 
-function playMusic(msg) {
+function playMusic(msg, musicBpm) {
   let notes = msg;
   if (typeof notes === "string") {
     notes = JSON.parse(msg).music;
@@ -143,11 +146,14 @@ function playMusic(msg) {
     Tone.Transport.stop();
     Tone.Transport.cancel();
     Tone.Transport.seconds = 0;
+    console.log('musicBpm:', musicBpm);
+    Tone.Transport.bpm.value = musicBpm;
     Tone.loaded().then(() => {
       console.log("Tone loaded!");
       let currTime = 0;
       // parse through the notes we are getting
       for (const [mi, mainNote] of notes.entries()) {
+        console.log('mi', mi)
         for (const subNote of mainNote) {
           const note = subNote[0];
           const duration =
@@ -157,13 +163,13 @@ function playMusic(msg) {
           if (note === Config.REST_NOTE) {
             // rest
             Tone.Transport.scheduleOnce((time) => {
-              console.log("scheduleOnce rest");
+              console.log("scheduleOnce rest", time, mi, 0);
               SYNTHS[mi][0].triggerAttackRelease(time);
             }, currTime);
           } else if (note < Config.REST_NOTE) {
             // note
             Tone.Transport.scheduleOnce((time) => {
-              console.log("scheduleOnce < rest");
+              console.log("scheduleOnce < rest", time, mi, 0);
               SYNTHS[mi][0].triggerAttackRelease(
                 Config.NOTE_MAPPINGS[note],
                 Config.NOTE_DURATIONS[duration],
@@ -175,7 +181,7 @@ function playMusic(msg) {
             let tempNotes = parseChord(note);
             for (const [ti, tempNote] of tempNotes.entries()) {
               Tone.Transport.scheduleOnce((time) => {
-                console.log("scheduleOnce chord");
+                console.log("scheduleOnce chord", time, mi, ti);
                 SYNTHS[mi][ti].triggerAttackRelease(
                   tempNote,
                   Config.NOTE_DURATIONS[duration],
@@ -200,6 +206,7 @@ export function Music() {
 
   const [btnDisabled, setBtnDisabled] = useState(true);
   const [openBackDrop, setBackDropOpen] = useState(false);
+  const [musicBpm, setMusicBpm] = useState(120);
 
   if (!ws) {
     setWs(new WebSocket(Config.WS_URL));
@@ -223,8 +230,7 @@ export function Music() {
         console.log("onmessage", message);
         setBackDropOpen(false);
         setBtnDisabled(false);
-
-        playMusic(message);
+        playMusic(message, musicBpm);
       };
 
       ws.onclose = () => {
@@ -234,13 +240,14 @@ export function Music() {
         setWs(new WebSocket(Config.WS_URL));
       };
     }
-  }, [ws]);
+  }, [ws, musicBpm]);
 
-  const sendMessage = (payload) => {
+  const sendMessage = (payload, bpm) => {
     console.log("sendMessage", payload);
     if (ws && ws.readyState !== WebSocket.CLOSED) {
       setBackDropOpen(true);
       setBtnDisabled(true);
+      setMusicBpm(bpm);
 
       ws.send(
         JSON.stringify({
@@ -265,7 +272,7 @@ export function Music() {
           aria-label="happy"
           component="span"
           disabled={btnDisabled}
-          onClick={sendMessage.bind(this, { tune: 1 })}
+          onClick={sendMessage.bind(this, { tune: 2 }, 30)}
         >
           <Mood className={classes.icon} />
         </IconButton>
@@ -274,7 +281,7 @@ export function Music() {
           aria-label="sad"
           component="span"
           disabled={btnDisabled}
-          onClick={sendMessage.bind(this, { tune: 2 })}
+          onClick={sendMessage.bind(this, { tune: 1 }, 4)}
         >
           <MoodBad className={classes.icon} />
         </IconButton>

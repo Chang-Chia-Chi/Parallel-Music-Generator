@@ -195,7 +195,7 @@ def music_genSeq(matrices, tune):
 
 def get_music(tune):
     n_folder_name = "matrix_npy"
-    current_path = os.getcwd()
+    current_path = os.path.dirname(__file__)
     npy_folder = os.path.join(current_path, n_folder_name)
     load_matrices(npy_folder)
     matrices2probMP()
